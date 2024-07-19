@@ -12,10 +12,11 @@ This program solves a two-dimensional wave equation
                2                       2
              dy                      dx
 
-with an arbitrary initial condition, damping and source functions, with Robin boundary
-conditions, on a uniform rectangular mesh. The governing equation is discretised using
-an implicit finite difference scheme. The program outputs images of the solution at 
-regular time intervals. Assumes a homogenous media.
+with an arbitrary initial condition, arbitary damping function nu(x,y), a source function
+q(x,y,t) and Robin boundary conditions, on a uniform rectangular mesh. The governing 
+equation is discretised using an implicit finite difference scheme. The program outputs 
+images of the solution at regular time intervals. Code assumes that the wave is travelling
+through a homogenous medium.
 
 Requires numpy, scipy and matplotlib
 
@@ -32,8 +33,8 @@ import math
 VERBOSE=True
 
 # Parameters used by the model
-Lx=50
-Ly=50
+Lx=100
+Ly=100
 endTime=500
 deltaT=0.01
 deltaX=0.5
@@ -221,7 +222,7 @@ def getU(ui,uim1,nuVec,t,A):
 
 # Saves an image
 def saveImage(u,t):
-	data=np.reshape(u,[N,M])
+	data=np.reshape(u,[M,N])
 	if t == 0:
 		filename="images/wave.0.0.png"
 	else:
