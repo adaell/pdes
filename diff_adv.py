@@ -45,17 +45,17 @@ VERBOSE=True
 # Parameters used by the discretisation scheme
 L_x=150
 L_y=100
-endTime=1000
-deltaT=0.1
-deltaX=0.5
-deltaY=0.5
+endTime=10000
+deltaT=0.5
+deltaX=0.50
+deltaY=0.50
 
 # x and y components of the advection vector v = v_x * î + v_y * ĵ
-v_x=10
-v_y=10
+v_x=10.0
+v_y=10.0
 
 # save an image whenever t = [an integer multiple of this number]
-save_interval=2.5
+save_interval=0.5
 
 # Robin parameters for each boundary
 #
@@ -69,7 +69,7 @@ save_interval=2.5
 b_x_0 =(1,0)
 b_x_Lx=(1,0)
 b_y_0 =(1,0)
-b_y_Ly=(1,0)
+b_y_Ly=(0,1)
 
 # g(x,y) on each boundary
 def g_x_0(x,y):
@@ -78,10 +78,10 @@ def g_x_0(x,y):
 def g_x_Lx(x,y):
 	return 0.0
 
-def g_y_Ly(x,y):
+def g_y_0(x,y):
 	return 0.0
 
-def g_y_0(x,y):
+def g_y_Ly(x,y):
 	return 0.0
 
 # The diffusivity / thermal conductivity function D(x,y)
@@ -90,11 +90,14 @@ def D(x,y):
 
 # The source function
 def q(x,y,t):
-	return 0.0
+	if x > 50 and x < 75 and y > 50 and y < 75:
+		return 1000.0
+	else:
+		return 0.0
 
 # The function u(x,y,0)
 def U_0(x,y):
-	return 100.0
+	return 0.0
 
 ########################################################################################
 
@@ -132,21 +135,21 @@ def getBoundaryType(n):
 	south=n < N
 	north=n >= N*(M-1)
 	if south and west:
-		return "southwest"
+		return "x_0_y_0"
 	elif south and east:
-		return "southeast"
+		return "x_Lx_y_0"
 	elif north and west:
-		return "northwest"
+		return "x_0_y_Ly"
 	elif north and east:
-		return "northeast"
+		return "x_Lx_y_Ly"
 	elif south:
-		return "south"
+		return "y_0"
 	elif north:
-		return "north"
+		return "y_Ly"
 	elif east:
-		return "east"
+		return "x_Lx"
 	elif west:
-		return "west"
+		return "x_0"
 	else:
 		return "false"
 
@@ -174,7 +177,7 @@ def getA():
 			A[i,i+1]=xp1
 			A[i,i-N]=ym1
 			A[i,i+N]=yp1
-		elif boundaryType == "west":
+		elif boundaryType == "x_0":
 			if W_dirichlet is True:
 				A[i,i]=b_x_0[0]
 			else:
@@ -183,7 +186,7 @@ def getA():
 				A[i,i+1]=xp1
 				A[i,i-N]=ym1
 				A[i,i+N]=yp1
-		elif boundaryType == "east":
+		elif boundaryType == "x_Lx":
 			if E_dirichlet is True:
 				A[i,i]=b_x_Lx[0]
 			else:
@@ -192,7 +195,7 @@ def getA():
 				A[i,i-1]=xm1
 				A[i,i-N]=ym1
 				A[i,i+N]=yp1
-		elif boundaryType == "south":
+		elif boundaryType == "y_0":
 			if S_dirichlet is True:
 				A[i,i]=b_y_0[0]
 			else:
@@ -201,7 +204,7 @@ def getA():
 				A[i,i-1]=xm1
 				A[i,i+1]=xp1
 				A[i,i+N]=yp1
-		elif boundaryType == "north":
+		elif boundaryType == "y_Ly":
 			if N_dirichlet is True:
 				A[i,i]=b_y_Ly[0]
 			else:
@@ -210,7 +213,7 @@ def getA():
 				A[i,i-1]=xm1
 				A[i,i+1]=xp1
 				A[i,i-N]=ym1	
-		elif boundaryType == "southwest":
+		elif boundaryType == "x_0_y_0":
 			if S_dirichlet is True:
 				A[i,i]=b_y_0[0]
 			elif W_dirichlet is True:
@@ -221,7 +224,7 @@ def getA():
 				A[i,i]=main_coeff+ym1*robin_y_0+xm1*robin_x_0
 				A[i,i+1]=xp1
 				A[i,i+N]=yp1
-		elif boundaryType == "southeast":
+		elif boundaryType == "x_Lx_y_0":
 			if S_dirichlet is True:
 				A[i,i]=b_y_0[0]
 			elif E_dirichlet is True:
@@ -232,7 +235,7 @@ def getA():
 				A[i,i]=main_coeff+ym1*robin_y_0+xp1*robin_x_Lx
 				A[i,i-1]=xm1
 				A[i,i+N]=yp1
-		elif boundaryType == "northwest":
+		elif boundaryType == "x_0_y_Ly":
 			if N_dirichlet is True:
 				A[i,i]=b_y_Ly[0]
 			elif W_dirichlet is True:
@@ -243,7 +246,7 @@ def getA():
 				A[i,i]=main_coeff+yp1*robin_y_Ly+xm1*robin_x_0
 				A[i,i+1]=xp1
 				A[i,i-N]=ym1	
-		elif boundaryType == "northeast":
+		elif boundaryType == "x_Lx_y_Ly":
 			if N_dirichlet is True:
 				A[i,i]=b_y_Ly[0]
 			elif E_dirichlet is True:
@@ -271,48 +274,48 @@ def getB(ui,t):
 		b[i]+=q(x,y,t)		
 		if boundaryType == "false":
 			continue
-		elif boundaryType == "west":
+		elif boundaryType == "x_0":
 			if W_dirichlet is True:
 				b[i]=g_x_0(x,y)
 			else:
 				b[i]+=xm1*((g_x_0(x,y)*deltaX)/(b_x_0[1]))
-		elif boundaryType == "east":
+		elif boundaryType == "x_Lx":
 			if E_dirichlet is True:
 				b[i]=g_x_Lx(x,y)
 			else:
 				b[i]+=-xp1*((g_x_Lx(x,y)*deltaX)/(b_x_Lx[1]))
-		elif boundaryType == "north":
+		elif boundaryType == "y_Ly":
 			if N_dirichlet is True:
 				b[i]=g_y_Ly(x,y)
 			else:
 				b[i]+=-yp1*((g_y_Ly(x,y)*deltaY)/(b_y_Ly[1]))
-		elif boundaryType == "south":
+		elif boundaryType == "y_0":
 			if S_dirichlet is True:
 				b[i]=g_y_0(x,y)
 			else:
 				b[i]+=ym1*((g_y_0(x,y)*deltaY)/(b_y_0[1]))
-		elif boundaryType == "southwest":
+		elif boundaryType == "x_0_y_0":
 			if S_dirichlet is True:
 				b[i]=g_y_0(x,y)
 			elif W_dirichlet is True:
 				b[i]=g_x_0(x,y)
 			else:
 				b[i]+=xm1*((g_x_0(x,y)*deltaX)/(b_x_0[1]))+ym1*((g_y_0(x,y)*deltaY)/(b_y_0[1]))
-		elif boundaryType == "southeast":
+		elif boundaryType == "x_Lx_y_0":
 			if E_dirichlet is True:
 				b[i]=g_x_Lx(x,y)
 			elif S_dirichlet is True:
 				b[i]=g_y_0(x,y)
 			else:
 				b[i]+=ym1*((g_y_0(x,y)*deltaY)/(b_y_0[1]))-xp1*((g_x_Lx(x,y)*deltaX)/(b_x_Lx[1]))
-		elif boundaryType == "northwest":
+		elif boundaryType == "x_0_y_Ly":
 			if N_dirichlet is True:
 				b[i]=g_y_Ly(x,y)
 			elif W_dirichlet is True:
 				b[i]=g_x_0(x,y)
 			else:
 				b[i]+=-yp1*((g_y_Ly(x,y)*deltaY)/(b_y_Ly[1]))+xm1*((g_x_0(x,y)*deltaX)/(b_x_0[1]))
-		elif boundaryType == "northeast":
+		elif boundaryType == "x_Lx_y_Ly":
 			if N_dirichlet is True:
 				b[i]=g_y_Ly(x,y)
 			elif E_dirichlet is True:
