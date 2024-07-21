@@ -23,7 +23,7 @@ conditions
 
 where a and b are real constants and g(x,y) is an arbitary function on the boundary. 
 Solution is calculated for an arbitrary initial condition u_0(x,y) = u(x,y,0). The 
-function u(x,y,t) is bound by the domain 0 <= x <= L_x and 0 <= y <= L_y with t >= 0.
+function u(x,y,t) is bounded by the domain 0 <= x <= L_x and 0 <= y <= L_y with t >= 0.
 
 The equation is discretised using an implicit finite difference scheme on a uniform 
 mesh. The program outputs images of the solution at regular time intervals. 
@@ -54,8 +54,8 @@ deltaY=0.5
 v_x=10
 v_y=10
 
-# save an image every so many steps
-saveMod=0.1
+# save an image whenever t = [an integer multiple of this number]
+save_interval=2.5
 
 # Robin parameters for each boundary
 #
@@ -352,14 +352,16 @@ def temporalLoop():
 
 	saveImage(u0,0)
 
+	next_image=save_interval
 	while t < endTime:
 		# find the next solution
 		t+=deltaX
 		u1=getU(u0,t,A)
 
 		# save a picture
-		if int(t % saveMod) == 0:
+		if t >= next_image:
 			saveImage(u1,t)
+			next_image+=save_interval
 
 		# prepare for next iteration
 		u0=u1
