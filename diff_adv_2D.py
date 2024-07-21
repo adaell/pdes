@@ -130,25 +130,25 @@ N_dirichlet=isDirichlet(b_y_Ly)
 
 # Returns boundary information for node n
 def getBoundaryType(n):
-	west=n % N == 0
-	east=n % N == (N - 1)
-	south=n < N
-	north=n >= N*(M-1)
-	if south and west:
+	x0=n % N == 0
+	xLx=n % N == (N - 1)
+	y0=n < N
+	yLy=n >= N*(M-1)
+	if y0 and x0:
 		return "x_0_y_0"
-	elif south and east:
+	elif y0 and xLx:
 		return "x_Lx_y_0"
-	elif north and west:
+	elif yLy and x0:
 		return "x_0_y_Ly"
-	elif north and east:
+	elif yLy and xLx:
 		return "x_Lx_y_Ly"
-	elif south:
+	elif y0:
 		return "y_0"
-	elif north:
+	elif yLy:
 		return "y_Ly"
-	elif east:
+	elif xLx:
 		return "x_Lx"
-	elif west:
+	elif x0:
 		return "x_0"
 	else:
 		return "false"
@@ -358,7 +358,7 @@ def temporalLoop():
 	next_image=save_interval
 	while t < endTime:
 		# find the next solution
-		t+=deltaX
+		t+=deltaT
 		u1=getU(u0,t,A)
 
 		# save a picture
