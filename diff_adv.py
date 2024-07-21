@@ -2,21 +2,31 @@
 This program calculates the solution to the two-dimensional diffusion-advection equation
 
                              2
- d                          d                      d
- -- (u(x, y, t)) = D(x, y) (--- (u(x, y, t))) - b (-- (u(x, y, t)))
- dt                           2                    dy
+ d                          d                        d
+ -- (u(x, y, t)) = D(x, y) (--- (u(x, y, t))) - v_y (-- (u(x, y, t)))
+ dt                           2                      dy
                             dy
+
                              2
-                            d                      d
-                 + D(x, y) (--- (u(x, y, t))) - a (-- (u(x, y, t))) + q(x, y, t)
-                              2                    dx
+                            d                        d
+                 + D(x, y) (--- (u(x, y, t))) - v_x (-- (u(x, y, t))) + q(x, y, t)
+                              2                      dx
                             dx
 
-where v = a*î + b*ĵ describes the direction of advection, D(x,y) describes the
-diffusivity at (x,y) and q(x,y) is a source term. Code assumes Robin boundary 
-conditions. Solution is calculated for an arbitrary initial condition u(x,y,0).
-The equation is discretised using an implicit finite difference scheme on a 
-uniform mesh. The program outputs images of the solution at regular time intervals. 
+where v = v_x*î + v_y*ĵ describes the direction of advection, D(x,y) describes the
+diffusivity at (x,y) and q(x,y,t) is a source term. Code assumes Robin boundary 
+conditions
+
+							          du
+							  a u + b -- = g(x,y)
+							          dn
+
+where a and b are real constants and g(x,y) is an arbitary function on the boundary. 
+Solution is calculated for an arbitrary initial condition u_0(x,y) = u(x,y,0). The 
+function u(x,y,t) is bound by the domain 0 <= x <= L_x and 0 <= y <= L_y with t >= 0.
+
+The equation is discretised using an implicit finite difference scheme on a uniform 
+mesh. The program outputs images of the solution at regular time intervals. 
 
 Requires numpy, scipy and matplotlib
 
@@ -32,34 +42,69 @@ import math
 
 VERBOSE=True
 
-# Parameters used by the model
-Lx=100
-Ly=100
+# Parameters used by the discretisation scheme
+L_x=150
+L_y=100
 endTime=1000
-deltaT=0.01
+deltaT=0.1
 deltaX=0.5
 deltaY=0.5
 
-# x and y components of the advection vector v=a*î+b*ĵ
-a=0
-b=0
+# x and y components of the advection vector v = v_x * î + v_y * ĵ
+v_x=10
+v_y=10
 
 # save an image every so many steps
 saveMod=0.1
 
-# Robin parameters for each boundary (N,S,E,W)
+# Robin parameters for each boundary
 #
 #          du
-#  a u + b -- = g
+#  a u + b -- = g(x,y)
 #          dn
 #
 # WARNING: Code does not test for unreasonable values.
 #
-# Format is: boundary_locat = (a,b,g)
-boundary_west=(0,1,0)
-boundary_east=(0,1,0)
-boundary_north=(1,0,0)
-boundary_south=(1,0,0)
+# Format is: boundary_locat = (a,b)
+b_x_0 =(1,0)
+b_x_Lx=(1,0)
+b_y_0 =(1,0)
+b_y_Ly=(1,0)
+
+# g(x,y) on each boundary
+def g_x_0(x,y):
+	return 0.0
+
+def g_x_Lx(x,y):
+	return 0.0
+
+def g_y_Ly(x,y):
+	return 0.0
+
+def g_y_0(x,y):
+	return 0.0
+
+# The diffusivity / thermal conductivity function D(x,y)
+def D(x,y):
+	return 100.0
+
+# The source function
+def q(x,y,t):
+	return 0.0
+
+# The function u(x,y,0)
+def U_0(x,y):
+	return 100.0
+
+########################################################################################
+
+# Returns an array with the initial condition
+def get_u0():
+	u0=np.zeros(numNodes, dtype=float)
+	for i in range(0,numNodes):
+		(x,y)=getXY(i)
+		u0[i]=U_0(x,y)
+	return u0
 
 # returns true if the boundary condition is Dirichlet
 def isDirichlet(boundary_tuple):
@@ -72,45 +117,13 @@ def isDirichlet(boundary_tuple):
 
 # Calculate these values just once
 PI=3.1415926535
-N = int(1 + Lx / (deltaX))
-M = int(1 + Ly / (deltaY))
+N = int(1 + L_x / (deltaX))
+M = int(1 + L_y / (deltaY))
 numNodes=int(N*M)
-if isDirichlet(boundary_west):
-	robinW=boundary_west[2]/boundary_west[0]
-else:
-	robinW=(boundary_west[2]*deltaX-boundary_west[1])/(boundary_west[0]*deltaX-boundary_west[1]) 
-if isDirichlet(boundary_east):
-	robinE=boundary_east[2]/boundary_east[0]
-else:
-	robinE=(boundary_east[2]*deltaX-boundary_east[1])/(boundary_east[0]*deltaX-boundary_east[1])
-if isDirichlet(boundary_south):
-	robinS=boundary_south[2]/boundary_south[0]
-else:
-	robinS=(boundary_south[0]*deltaY-boundary_south[1])/(boundary_south[2]*deltaY-boundary_south[1])
-if isDirichlet(boundary_north):
-	robinN=boundary_north[2]/boundary_north[0]
-else:
-	robinN=(boundary_north[0]*deltaY-boundary_north[1])/(boundary_north[2]*deltaY-boundary_north[1])
-a2deltaX=a/(2*deltaX)
-b2deltaY=b/(2*deltaY)
-one2deltaX=1/(2*deltaX)
-one2deltaY=1/(2*deltaY)
-onedeltaT=1/(deltaT)
-
-# Source term function
-def q(x,y,t):
-	return 0
-
-# The diffusivity at (x,y)
-def D(x,y):
-	return 100
-
-# The initial condition
-def getU0(x,y):
-	u0=np.zeros(numNodes, dtype=float)
-	for i in range(0,numNodes):
-		u0[i]=1.0
-	return u0
+W_dirichlet=isDirichlet(b_x_0)
+E_dirichlet=isDirichlet(b_x_Lx)
+S_dirichlet=isDirichlet(b_y_0)
+N_dirichlet=isDirichlet(b_y_Ly)
 
 # Returns boundary information for node n
 def getBoundaryType(n):
@@ -143,78 +156,169 @@ def getXY(n):
 	y=int(n / M) * deltaY
 	return (x,y)
 
-# returns an array with values of D(x,y) at each mesh point
-def getDvec():
-	d_vec=np.zeros(numNodes, dtype=float)
-	for i in range(0,numNodes):
-		(x,y)=getXY(i)
-		d_vec[i]=D(x,y)
-	return d_vec
-
 # returns the coefficient matrix, A
 def getA():
-	#A=np.zeros((numNodes,numNodes), dtype=float)
 	A=scipy.sparse.lil_matrix((numNodes,numNodes), dtype=float)
-	D_vec=getDvec()
 	for i in range(0,numNodes):
 		boundaryType=getBoundaryType(i)
 		(x,y)=getXY(i)
-		mainCoeff=onedeltaT+D_vec[i]/deltaX+D_vec[i]/deltaY
-		xp1=  a2deltaX-D_vec[i]/(2*deltaX)
-		xm1= -a2deltaX-D_vec[i]/(2*deltaX)
-		yp1=  b2deltaY-D_vec[i]/(2*deltaY)
-		ym1= -b2deltaY-D_vec[i]/(2*deltaY)
+		Dxy=D(x,y)
+		main_coeff=(1/deltaT)+2.0*Dxy/(deltaX*deltaX)+2.0*Dxy/(deltaY*deltaY)
+		xp1= -Dxy/(deltaX*deltaX)+v_x/(2*deltaX)
+		xm1= -Dxy/(deltaX*deltaX)-v_x/(2*deltaX)
+		yp1= -Dxy/(deltaY*deltaY)+v_y/(2*deltaY)
+		ym1= -Dxy/(deltaY*deltaY)-v_y/(2*deltaY)
 		if boundaryType == "false":
-			A[i,i]=mainCoeff
-			A[i-1,i]=xm1
-			A[i+1,i]=xp1
-			A[i-N,i]=ym1
-			A[i+N,i]=yp1
+			A[i,i]=main_coeff
+			A[i,i-1]=xm1
+			A[i,i+1]=xp1
+			A[i,i-N]=ym1
+			A[i,i+N]=yp1
 		elif boundaryType == "west":
-			A[i,i]=mainCoeff-xm1*robinW
-			A[i+1,i]=xp1
-			A[i-N,i]=ym1
-			A[i+N,i]=yp1
+			if W_dirichlet is True:
+				A[i,i]=b_x_0[0]
+			else:
+				robin_x_0=(b_x_0[0]*deltaX+b_x_0[1])/(b_x_0[1])
+				A[i,i]=main_coeff+xm1*robin_x_0
+				A[i,i+1]=xp1
+				A[i,i-N]=ym1
+				A[i,i+N]=yp1
 		elif boundaryType == "east":
-			A[i,i]=mainCoeff-xp1*robinE
-			A[i-1,i]=xm1
-			A[i-N,i]=ym1
-			A[i+N,i]=yp1
-		elif boundaryType == "north":
-			A[i,i]=mainCoeff-yp1*robinN
-			A[i-1,i]=xm1
-			A[i+1,i]=xp1
-			A[i-N,i]=ym1
+			if E_dirichlet is True:
+				A[i,i]=b_x_Lx[0]
+			else:
+				robin_x_Lx=(b_x_Lx[1]-b_x_Lx[0]*deltaX)/(b_x_Lx[1])
+				A[i,i]=main_coeff+xp1*robin_x_Lx
+				A[i,i-1]=xm1
+				A[i,i-N]=ym1
+				A[i,i+N]=yp1
 		elif boundaryType == "south":
-			A[i,i]=mainCoeff-ym1*robinS
-			A[i-1,i]=xm1
-			A[i+1,i]=xp1
-			A[i+N,i]=yp1
+			if S_dirichlet is True:
+				A[i,i]=b_y_0[0]
+			else:
+				robin_y_0=(b_y_0[0]*deltaY+b_y_0[1])/(b_y_0[1])
+				A[i,i]=main_coeff+ym1*robin_y_0
+				A[i,i-1]=xm1
+				A[i,i+1]=xp1
+				A[i,i+N]=yp1
+		elif boundaryType == "north":
+			if N_dirichlet is True:
+				A[i,i]=b_y_Ly[0]
+			else:
+				robin_y_Ly=(b_y_Ly[1]-b_y_Ly[0]*deltaY)/(b_y_Ly[1])
+				A[i,i]=main_coeff+yp1*robin_y_Ly
+				A[i,i-1]=xm1
+				A[i,i+1]=xp1
+				A[i,i-N]=ym1	
 		elif boundaryType == "southwest":
-			A[i,i]=mainCoeff-ym1*robinS-xm1*robinW
-			A[i+1,i]=xp1
-			A[i+N,i]=yp1
+			if S_dirichlet is True:
+				A[i,i]=b_y_0[0]
+			elif W_dirichlet is True:
+				A[i,i]=b_x_0[0]
+			else:
+				robin_y_0=(b_y_0[0]*deltaY+b_y_0[1])/(b_y_0[1])
+				robin_x_0=(b_x_0[0]*deltaX+b_x_0[1])/(b_x_0[1])
+				A[i,i]=main_coeff+ym1*robin_y_0+xm1*robin_x_0
+				A[i,i+1]=xp1
+				A[i,i+N]=yp1
 		elif boundaryType == "southeast":
-			A[i,i]=mainCoeff-ym1*robinS-xp1*robinE
-			A[i-1,i]=xm1
-			A[i+N,i]=yp1
+			if S_dirichlet is True:
+				A[i,i]=b_y_0[0]
+			elif E_dirichlet is True:
+				A[i,i]=b_x_Lx[0]
+			else:
+				robin_y_0=(b_y_0[0]*deltaY+b_y_0[1])/(b_y_0[1])
+				robin_x_Lx=(b_x_Lx[1]-b_x_Lx[0]*deltaX)/(b_x_Lx[1])
+				A[i,i]=main_coeff+ym1*robin_y_0+xp1*robin_x_Lx
+				A[i,i-1]=xm1
+				A[i,i+N]=yp1
 		elif boundaryType == "northwest":
-			A[i,i]=mainCoeff-yp1*robinN-xm1*robinW
-			A[i+1,i]=xp1
-			A[i-N,i]=ym1
+			if N_dirichlet is True:
+				A[i,i]=b_y_Ly[0]
+			elif W_dirichlet is True:
+				A[i,i]=b_x_0[0]
+			else:
+				robin_x_0=(b_x_0[0]*deltaX+b_x_0[1])/(b_x_0[1])
+				robin_y_Ly=(b_y_Ly[1]-b_y_Ly[0]*deltaY)/(b_y_Ly[1])
+				A[i,i]=main_coeff+yp1*robin_y_Ly+xm1*robin_x_0
+				A[i,i+1]=xp1
+				A[i,i-N]=ym1	
 		elif boundaryType == "northeast":
-			A[i,i]=mainCoeff-yp1*robinN-xp1*robinE
-			A[i-1,i]=xm1
-			A[i-N,i]=ym1
+			if N_dirichlet is True:
+				A[i,i]=b_y_Ly[0]
+			elif E_dirichlet is True:
+				A[i,i]=b_x_Lx[0]
+			else:
+				robin_x_Lx=(b_x_Lx[1]-b_x_Lx[0]*deltaX)/(b_x_Lx[1])
+				robin_y_Ly=(b_y_Ly[1]-b_y_Ly[0]*deltaY)/(b_y_Ly[1])
+				A[i,i]=main_coeff+yp1*robin_y_Ly+xp1*robin_x_Lx
+				A[i,i-1]=xm1
+				A[i,i-N]=ym1	
 	A=scipy.sparse.csr_matrix(A)
 	return A
 
 # Returns the rhs vector, b
 def getB(ui,t):
-	b=onedeltaT*ui
+	b=(1/deltaT)*ui	
 	for i in range(0,numNodes):
+		boundaryType=getBoundaryType(i)
 		(x,y)=getXY(i)
-		b[i]+=q(x,y,t)
+		Dxy=D(x,y)
+		xp1= -Dxy/(deltaX*deltaX)+v_x/(2*deltaX)
+		xm1= -Dxy/(deltaX*deltaX)-v_x/(2*deltaX)
+		yp1= -Dxy/(deltaY*deltaY)+v_y/(2*deltaY)
+		ym1= -Dxy/(deltaY*deltaY)-v_y/(2*deltaY)
+		b[i]+=q(x,y,t)		
+		if boundaryType == "false":
+			continue
+		elif boundaryType == "west":
+			if W_dirichlet is True:
+				b[i]=g_x_0(x,y)
+			else:
+				b[i]+=xm1*((g_x_0(x,y)*deltaX)/(b_x_0[1]))
+		elif boundaryType == "east":
+			if E_dirichlet is True:
+				b[i]=g_x_Lx(x,y)
+			else:
+				b[i]+=-xp1*((g_x_Lx(x,y)*deltaX)/(b_x_Lx[1]))
+		elif boundaryType == "north":
+			if N_dirichlet is True:
+				b[i]=g_y_Ly(x,y)
+			else:
+				b[i]+=-yp1*((g_y_Ly(x,y)*deltaY)/(b_y_Ly[1]))
+		elif boundaryType == "south":
+			if S_dirichlet is True:
+				b[i]=g_y_0(x,y)
+			else:
+				b[i]+=ym1*((g_y_0(x,y)*deltaY)/(b_y_0[1]))
+		elif boundaryType == "southwest":
+			if S_dirichlet is True:
+				b[i]=g_y_0(x,y)
+			elif W_dirichlet is True:
+				b[i]=g_x_0(x,y)
+			else:
+				b[i]+=xm1*((g_x_0(x,y)*deltaX)/(b_x_0[1]))+ym1*((g_y_0(x,y)*deltaY)/(b_y_0[1]))
+		elif boundaryType == "southeast":
+			if E_dirichlet is True:
+				b[i]=g_x_Lx(x,y)
+			elif S_dirichlet is True:
+				b[i]=g_y_0(x,y)
+			else:
+				b[i]+=ym1*((g_y_0(x,y)*deltaY)/(b_y_0[1]))-xp1*((g_x_Lx(x,y)*deltaX)/(b_x_Lx[1]))
+		elif boundaryType == "northwest":
+			if N_dirichlet is True:
+				b[i]=g_y_Ly(x,y)
+			elif W_dirichlet is True:
+				b[i]=g_x_0(x,y)
+			else:
+				b[i]+=-yp1*((g_y_Ly(x,y)*deltaY)/(b_y_Ly[1]))+xm1*((g_x_0(x,y)*deltaX)/(b_x_0[1]))
+		elif boundaryType == "northeast":
+			if N_dirichlet is True:
+				b[i]=g_y_Ly(x,y)
+			elif E_dirichlet is True:
+				b[i]=g_x_Lx(x,y)
+			else:
+				b[i]+=-yp1*((g_y_Ly(x,y)*deltaY)/(b_y_Ly[1]))-xp1*((g_x_Lx(x,y)*deltaX)/(b_x_Lx[1]))
 	return b
 
 # Returns the value of u(x,y,t) at the next time step
@@ -233,13 +337,16 @@ def saveImage(u,t):
 	title_text="t = " + str(t)
 	plt.imshow(data)
 	plt.title(title_text)
+	plt.inferno()
 	plt.colorbar()
+	plt.xlabel("x")
+	plt.ylabel("y")
 	plt.savefig(filename)
 	plt.close()
 
 # temporal loop
 def temporalLoop():
-	u0=getU0(0,0)
+	u0=get_u0()
 	A=getA()
 	t=0
 
