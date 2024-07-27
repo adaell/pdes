@@ -15,13 +15,13 @@ Calculates the solution to the two-dimensional diffusion-advection / heat-convec
 \begin{equation*}
 \frac{\partial u}{\partial t} = D(x,y) \hspace{0.1cm} \nabla^{2} u  - \mathbf{\hat{v}} \cdot \nabla u + q(x,y,t),
 \end{equation*}
-using cartesian coordinates on a uniform mesh, on the domain $\partial \Omega$ bound by $x \in [0,L_x]$ and $y \in [0,L_y]$, where
+using cartesian coordinates on a uniform mesh, on the domain $\Omega$ bound by $x \in [0,L_x]$ and $y \in [0,L_y]$, where
 \begin{equation*}
 \mathbf{\hat{v}} = v_x \mathbf{\hat{\imath}} + v_y \mathbf{\hat{\jmath}}
 \end{equation*}
 describes the direction of advection, $D(x,y)$ is the diffusivity and $q(x,y,t)$ is a source/sink term. The program assumes Robin boundary conditions
 \begin{equation*}
-a \hspace{0.1cm} u(x,y,t) + b  \frac{\partial u}{\partial n} = g(x,y)
+a \hspace{0.1cm} u(x,y,t) + b \hspace{0.1cm} \frac{\partial u}{\partial n} = g(x,y)
 \end{equation*}
 where $a$ and $b$ are real scalars, $g(x,y)$ is an arbitrary function on the boundary and $\partial n$ denotes differentiation in the direction of a normal to the boundary. The initial condition $u_0(x,y)=u(x,y,0)$ can be any real valued function. The solution is calculated using the finite difference method.
 
@@ -32,7 +32,7 @@ Calculates the solution to the two-dimensional acoustic wave equation
 \begin{equation*}
 \frac{\partial^2 p}{\partial t^2} + \nu(x,y) \hspace{0.1cm} \frac{\partial p}{\partial t} = c^2 \hspace{0.1cm} \nabla^{2} u + q(x,y,t),
 \end{equation*}
-using cartesian coordinates on a uniform mesh, on the domain $\partial \Omega$ bound by $x \in [0,L_x]$ and $y \in [0,L_y]$, where $\nu(x,y)$ is a damping term, $c$ is the speed of sound and $q(x,y,t)$ is a source/sink term. The program assumes Robin boundary conditions
+using cartesian coordinates on a uniform mesh, on the domain $\Omega$ bound by $x \in [0,L_x]$ and $y \in [0,L_y]$, where $\nu(x,y)$ is a damping term, $c$ is the speed of sound and $q(x,y,t)$ is a source/sink term. The program assumes Robin boundary conditions
 \begin{equation*}
 a \hspace{0.1cm} u(x,y,t) + b \hspace{0.1cm} \frac{\partial u}{\partial n} = g(x,y),
 \end{equation*}
@@ -42,9 +42,9 @@ where $a$ and $b$ are real scalars, $g(x,y)$ is an arbitrary function on the bou
 \subsection{\texttt{helmholtz.py}} 
 Calculates the solution to the nonhomogenous Helmholtz equation
 \begin{equation*}
-(\nabla^2 + k(x,y)^2) \hspace{0.1cm} \psi(x,y,t) = f(x,y),
+(\nabla^2 + k(x,y)^2) \hspace{0.1cm} f(x,y,t) = \psi(x,y),
 \end{equation*}
-using cartesian coordinates on a uniform mesh, on the domain $\partial \Omega$ bound by \newline $x \in [0,L_x]$ and $y \in [0,L_y]$, where $k(x,y)$ and $f(x,y)$ are real valued functions. The program assumes Robin boundary conditions
+using cartesian coordinates on a uniform mesh, on the domain $\Omega$ bound by \newline $x \in [0,L_x]$ and $y \in [0,L_y]$, where $k(x,y)$ and $\psi(x,y)$ are real valued functions. The program assumes Robin boundary conditions
 \begin{equation*}
 a \hspace{0.1cm} u(x,y,t) + b \hspace{0.1cm} \frac{\partial u}{\partial n} = g(x,y),
 \end{equation*}
