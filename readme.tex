@@ -23,20 +23,20 @@ describes the direction of advection, $D(x,y)$ is the diffusivity and $q(x,y,t)$
 \begin{equation*}
 a \hspace{0.1cm} u(x,y,t) + b  \frac{\partial u}{\partial n} = g(x,y)
 \end{equation*}
-where $a$ and $b$ are real scalars, $g(x,y)$ is an arbitrary function on the boundary and $\partial n$ denotes differentiation in direction of a normal to the boundary. The initial condition $u_0(x,y)=u(x,y,0)$ can be any real valued function. The solution is calculated using the finite difference method.
+where $a$ and $b$ are real scalars, $g(x,y)$ is an arbitrary function on the boundary and $\partial n$ denotes differentiation in the direction of a normal to the boundary. The initial condition $u_0(x,y)=u(x,y,0)$ can be any real valued function. The solution is calculated using the finite difference method.
 
 \section{Hyperbolic PDEs}
 
 \subsection{\texttt{wave\_2D.py}} 
 Calculates the solution to the two-dimensional acoustic wave equation
 \begin{equation*}
-\frac{\partial p}{\partial t} + \nu(x,y) \hspace{0.1cm} \frac{\partial p}{\partial t} = c^2 \hspace{0.1cm} \nabla^{2} u + q(x,y,t),
+\frac{\partial^2 p}{\partial t^2} + \nu(x,y) \hspace{0.1cm} \frac{\partial p}{\partial t} = c^2 \hspace{0.1cm} \nabla^{2} u + q(x,y,t),
 \end{equation*}
 using cartesian coordinates on a uniform mesh, on the domain $\partial \Omega$ bound by $x \in [0,L_x]$ and $y \in [0,L_y]$, where $\nu(x,y)$ is a damping term, $c$ is the speed of sound and $q(x,y,t)$ is a source/sink term. The program assumes Robin boundary conditions
 \begin{equation*}
 a \hspace{0.1cm} u(x,y,t) + b \hspace{0.1cm} \frac{\partial u}{\partial n} = g(x,y),
 \end{equation*}
-where $a$ and $b$ are real scalars, $g(x,y)$ is an arbitrary function on the boundary and $\partial n$ denotes differentiation in direction of a normal to the boundary. The initial pressure $p_0(x,y)=p(x,y,0)$ can be any real valued function. The solution is calculated using the finite difference method.
+where $a$ and $b$ are real scalars, $g(x,y)$ is an arbitrary function on the boundary and $\partial n$ denotes differentiation in the direction of a normal to the boundary. The initial pressure $p_0(x,y)=p(x,y,0)$ can be any real valued function. The solution is calculated using the finite difference method.
 
 \section{Elliptical PDEs}
 \subsection{\texttt{helmholtz.py}} 
@@ -48,7 +48,7 @@ using cartesian coordinates on a uniform mesh, on the domain $\partial \Omega$ b
 \begin{equation*}
 a \hspace{0.1cm} u(x,y,t) + b \hspace{0.1cm} \frac{\partial u}{\partial n} = g(x,y),
 \end{equation*}
-where $a$ and $b$ are real scalars, $g(x,y)$ is an arbitrary function on the boundary and $\partial n$ denotes differentiation in direction of a normal to the boundary. The solution is calculated using the finite difference method. \newline
+where $a$ and $b$ are real scalars, $g(x,y)$ is an arbitrary function on the boundary and $\partial n$ denotes differentiation in the direction of a normal to the boundary. The solution is calculated using the finite difference method. \newline
 \newline
 \texttt{keywords: Laplace's equation, Poisson's equation.}
 
