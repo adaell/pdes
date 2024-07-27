@@ -1,5 +1,5 @@
 """
-This program solves a two-dimensional wave equation
+This program calculates the solution to a two-dimensional wave equation
 
   2
  d                            d
@@ -12,7 +12,7 @@ This program solves a two-dimensional wave equation
                2                       2
              dy                      dx
 
-with an arbitrary initial condition, arbitary damping function nu(x,y), a source function
+with an arbitrary initial condition, arbitary damping function nu(x,y), source function
 q(x,y,t) and Robin boundary conditions, on a uniform rectangular mesh. The governing 
 equation is discretised using an implicit finite difference scheme. The program outputs 
 images of the solution at regular time intervals. Code assumes that the wave is travelling
@@ -35,7 +35,7 @@ VERBOSE=True
 # Parameters used by the model
 Lx=100
 Ly=100
-endTime=500
+endTime=5000
 deltaT=0.01
 deltaX=0.5
 deltaY=0.5
@@ -231,11 +231,11 @@ def saveImage(u,t):
 	plt.imshow(data)
 	plt.title(title_text)
 	plt.colorbar()
-	# plt.clim(-pulseAmplitude,pulseAmplitude)
 	plt.savefig(filename)
 	plt.close()
 
 # Iterates over time
+@profile
 def temporalLoop():
 	u0=getU0(0,0)
 	u1=getU1(0,0)
@@ -247,7 +247,7 @@ def temporalLoop():
 
 	while t < endTime:
 		# find the next solution
-		t+=deltaX
+		t+=deltaT
 		u2=getU(u1,u0,nuVec,t,A)
 
 		# save a picture
