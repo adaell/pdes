@@ -11,3 +11,4 @@ clean:
 	rm -f readme.bcf
 	rm -f readme.run.xml
 	rm -f images/*
+	rm -f animation.gif

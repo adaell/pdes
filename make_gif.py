@@ -21,10 +21,4 @@ for file_name in filelist:
         file_path = os.path.join(image_folder, file_name)
         images.append(imageio.imread(file_path))
 
-
-# for file_name in os.listdir(image_folder):
-#     if file_name.endswith('.png'):
-#         file_path = os.path.join(image_folder, file_name)
-#         images.append(imageio.imread(file_path))
-
 imageio.mimsave(savepath, images)

@@ -10,9 +10,9 @@ equation
 	---- =   - ----- -- ,
 	 dt         rho  dy  
 
-	dp                    2           dv_y   dv_x
-	-- + nu(x,y)  p  = - c  * rho * ( ---- + ---- ) + q(x,y,t) ,
-	dt                                 dy     dx
+	dp                     2           dv_y   dv_x
+	-- + nu(x,y) * p  = - c  * rho * ( ---- + ---- ) + q(x,y,t) ,
+	dt                                  dy     dx
 
 or, equivalently,
 
@@ -47,7 +47,7 @@ condition p(x,y,0). The equation is discretised using a finite difference
 scheme and is solved on a uniform mesh. The temporal integration uses a 
 leap-frog.
 
-Requires numpy and matplotlib
+Requires numpy, matplotlib and numba
 
 References:
 Berenger, J.-P. (1994) 'A perfectly matched layer for the absorption of 
@@ -56,32 +56,29 @@ https://doi.org/10.1006/jcph.1994.1159.
 
 """
 
-__version__ = '0.1.beta'
+__version__ = '0.1'
 
+from numba import njit, prange
 import numpy as np
-import scipy.sparse
-import scipy.sparse.linalg
 import matplotlib.pyplot as plt
 import math
 
-VERBOSE=True
-
 # Parameters used by the discretisation scheme
-L_x=25.0
-L_y=25.0
-endTime=10.0
+L_x=50.0
+L_y=50.0
+endTime=50.0
 deltaT=0.01
 deltaX=0.05
 deltaY=0.05
 
 # Physical parameters
-rho=1.0
+rho=1.025
 c=2
 
 # save an image whenever t = [an integer multiple of this number]
 save_interval=0.10
-colorbar_min=-120
-colorbar_max=120
+colorbar_min=-20
+colorbar_max=20
 
 # Robin parameters for each boundary
 #
@@ -105,19 +102,24 @@ pml_y_Ly=True
 pml_width=20 # Width of PML in number of nodes
 
 # g(x,y) on each boundary
+@njit()
 def g_x_0(x,y):
 	return 0.0
 
+@njit()
 def g_x_Lx(x,y):
 	return 0.0
 
+@njit()
 def g_y_0(x,y):
 	return 0.0
 
+@njit()
 def g_y_Ly(x,y):
 	return 0.0
 
 # Source term function
+@njit()
 def q(x,y,t):
 	# Pulse 1
 	pulseCenterX=0.5*L_x
@@ -128,18 +130,10 @@ def q(x,y,t):
 	ytest=abs(y-pulseCenterY) <= deltaY
 	if xtest is True and ytest is True:
 		return pulseAmplitude*math.sin(pulsePeriod*2*PI*t)
-	# Pulse 2
-	pulseCenterX=0.75*L_x
-	pulseCenterY=0.75*L_y
-	pulseAmplitude=100.0
-	pulsePeriod=2
-	xtest=abs(x-pulseCenterX) <= deltaX
-	ytest=abs(y-pulseCenterY) <= deltaY
-	if xtest is True and ytest is True:
-		return pulseAmplitude*math.sin(pulsePeriod*2*PI*t)
 	return 0.0
 
 # Damping function
+@njit()
 def nu(x,y):
 	return 0.0
 
@@ -185,6 +179,7 @@ oneDeltaT=(1/deltaT)
 cSquared=c*c
 
 # Returns boundary information for node n
+@njit()
 def getBoundaryType(n):
 	x0=n % N == 0
 	xLx=n % N == (N - 1)
@@ -209,33 +204,15 @@ def getBoundaryType(n):
 	else:
 		return "false"
 
-# Calculate boundary info just once
-boundary=[None]*num_nodes
-def getBoundaryVec():
-	for i in range(0,num_nodes):
-		boundary[i]=getBoundaryType(i)
-getBoundaryVec()
-
 # returns the x and y coordinates of node n
+@njit()
 def get_XY(n):
 	x=(n % N) * deltaX
 	y=int(n / M) * deltaY
 	return (x,y)
 
-# Calculate the coordinates of each node just once
-xcoord=[None]*num_nodes
-ycoord=[None]*num_nodes
-xnum=[None]*num_nodes
-ynum=[None]*num_nodes
-def getCoordInfo():
-	for i in range(0,num_nodes):
-		xnum[i]=(i % N)
-		ynum[i]=int(i / M)
-		xcoord[i]=xnum[i]*deltaX
-		ycoord[i]=ynum[i]*deltaY
-getCoordInfo()
-
 # Returns the value of sigma at node n
+@njit()
 def getSigma(n):
 	x = n % N
 	y = int(n / M)
@@ -258,28 +235,11 @@ def getSigma(n):
 		sigmax=a*yy*yy-a*(L_y-wd)*(L_y-wd)
 	return sigmax+sigmay
 
-# Calculate sigma just once
-sigmaxy=[None]*num_nodes
-def getSigmaVec():
-	for i in range(0,num_nodes):
-		sigmaxy[i] = getSigma(i)
-getSigmaVec()
-
-# Calculate nu(x,y) for each point just once
-nuxy=[None]*num_nodes
-def getNu():
-	for i in range(0,num_nodes):
-		x=xcoord[i]
-		y=ycoord[i]
-		nuxy[i]=nu(x,y)
-getNu()
-
 # Returns an array with p(x,y,0)
 def get_p0(x,y):
 	p0=np.zeros(num_nodes, dtype=float)
 	for i in range(0,num_nodes):
-		x=xcoord[i]
-		y=ycoord[i]
+		(x,y)=get_XY(i)
 		p0[i]=p_0(x,y)
 	return p0
 
@@ -287,8 +247,7 @@ def get_p0(x,y):
 def get_u0(x,y):
 	u0=np.zeros(num_nodes, dtype=float)
 	for i in range(0,num_nodes):
-		x=xcoord[i]
-		y=ycoord[i]
+		(x,y)=get_XY(i)
 		u0[i]=u_0(x,y)
 	return u0
 
@@ -296,20 +255,18 @@ def get_u0(x,y):
 def get_v0(x,y):
 	v0=np.zeros(num_nodes, dtype=float)
 	for i in range(0,num_nodes):
-		x=xcoord[i]
-		y=ycoord[i]
+		(x,y)=get_XY(i)
 		v0[i]=v_0(x,y)
 	return v0
 
 # updates u
-def get_u(u_old,p):
-	u=np.zeros(num_nodes, dtype=float)
-	for i in range(0,num_nodes):
-		boundaryType=boundary[i]
-		x=xcoord[i]
-		y=ycoord[i]
+@njit(parallel=True)
+def get_u(u,p):
+	for i in prange(0,num_nodes):
+		boundaryType=getBoundaryType(i)
+		(x,y)=get_XY(i)
 		m=deltaT/(2.0*rho*deltaX)
-		divisor=1-deltaT*sigmaxy[i]
+		divisor=1-deltaT*getSigma(i)
 		pxm=0.0
 		pxp=0.0
 		if boundaryType == "x_0" or boundaryType == "x_0_y_0" or boundaryType == "x_0_y_Ly":
@@ -325,20 +282,19 @@ def get_u(u_old,p):
 			else:
 				pxp=(deltaX*g_x_Lx(x,y)/b_x_Lx[1])+(1-deltaX*b_x_Lx[0]/b_x_Lx[1])*p[i]
 		else:
-			pxm=float(p[i-1])
-			pxp=float(p[i+1])
-		u[i]=(u_old[i]-m*pxp+m*pxm)/divisor
+			pxm=p[i-1]
+			pxp=p[i+1]
+		u[i]=(u[i]-m*pxp+m*pxm)/divisor
 	return u
 
 # updates v
-def get_v(v_old,p):
-	v=np.zeros(num_nodes, dtype=float)
-	for i in range(0,num_nodes):
-		boundaryType=boundary[i]
-		x=xcoord[i]
-		y=ycoord[i]
+@njit(parallel=True)
+def get_v(v,p):
+	for i in prange(0,num_nodes):
+		boundaryType=getBoundaryType(i)
+		(x,y)=get_XY(i)
 		m=deltaT/(2*rho*deltaY)
-		divisor=1-deltaT*sigmaxy[i]
+		divisor=1-deltaT*getSigma(i)
 		pym=0
 		pyp=0
 		if boundaryType == "y_0" or boundaryType == "x_0_y_0" or boundaryType == "x_Lx_y_0":
@@ -356,16 +312,15 @@ def get_v(v_old,p):
 		else:
 			pyp=p[i+N]
 			pym=p[i-N]
-		v[i]=(v_old[i]-m*pyp+m*pym)/divisor
+		v[i]=(v[i]-m*pyp+m*pym)/divisor
 	return v
 
 # updates p_x
-def get_p_x(p_old,u,t):
-	p=np.zeros(num_nodes, dtype=float)
-	for i in range(0,num_nodes):
-		boundaryType=boundary[i]
-		x=xcoord[i]
-		y=ycoord[i]
+@njit(parallel=True)
+def get_p_x(p,u,t):
+	for i in prange(0,num_nodes):
+		boundaryType=getBoundaryType(i)
+		(x,y)=get_XY(i)
 		m=rho*c*c*deltaT/(2*deltaX)
 		divisor=1+deltaT*nu(x,y)-deltaT*getSigma(i)
 		uxm=0
@@ -385,16 +340,15 @@ def get_p_x(p_old,u,t):
 		else:
 			uxm=u[i-1]
 			uxp=u[i+1]
-		p[i]=(p_old[i]-m*uxp+m*uxm+0.5*deltaT*q(x,y,t))/divisor
+		p[i]=(p[i]-m*uxp+m*uxm+0.5*deltaT*q(x,y,t))/divisor
 	return p
 
 # updates p_y
-def get_p_y(p_old,v,t):
-	p=np.zeros(num_nodes, dtype=float)
-	for i in range(0,num_nodes):
-		boundaryType=boundary[i]
-		x=xcoord[i]
-		y=ycoord[i]
+@njit(parallel=True)
+def get_p_y(p,v,t):
+	for i in prange(0,num_nodes):
+		boundaryType=getBoundaryType(i)
+		(x,y)=get_XY(i)
 		m=rho*c*c*deltaT/(2*deltaY)
 		divisor=1+deltaT*nu(x,y)-deltaT*getSigma(i)
 		vym=0
@@ -414,7 +368,7 @@ def get_p_y(p_old,v,t):
 		else:
 			vym=v[i-N]
 			vyp=v[i+N]
-		p[i]=(p_old[i]-m*vyp+m*vym+0.5*deltaT*q(x,y,t))/divisor
+		p[i]=(p[i]-m*vyp+m*vym+0.5*deltaT*q(x,y,t))/divisor
 	return p
 
 # Saves an image
@@ -429,6 +383,7 @@ def saveImage(u,t):
 	plt.title(title_text)
 	plt.clim(vmin=colorbar_min,vmax=colorbar_max)
 	plt.colorbar()
+	plt.viridis()
 	plt.savefig(filename)
 	plt.close()
 
@@ -457,6 +412,12 @@ def temporalLoop():
 			next_image+=save_interval
 
 def main():
+	if (c >= deltaX / deltaT):
+		print("Warning: Recommend that you decrease deltaX")
+	if (c >= deltaY / deltaT):
+		print("Warning: Recommend that you decrease deltaY")
 	temporalLoop()
+
+
 
 main()
