@@ -52,7 +52,7 @@ where $\mathbf{\hat{v}}(x,y,t)$ describes the velocity at each point in the mesh
 \begin{equation*}
 a \hspace{0.1cm} u(x,y,t) + b \hspace{0.1cm} \frac{\partial u}{\partial n} = g(x,y),
 \end{equation*}
-where $a$ and $b$ are real scalars, $g(x,y)$ is an arbitrary function on the boundary and $\partial n$ denotes differentiation in the direction of a normal to the boundary. The initial pressure $p_0(x,y)=p(x,y,0)$ can be any real valued function. The solution is calculated using the finite difference method. Perfectly matched layers are implemented by stretching the coordinates of the governing equations into the complex domain in Fourier-transform-space using the method proposed by Berenger \cite{Berenger1994}.
+where $a$ and $b$ are real scalars, $g(x,y)$ is an arbitrary function on the boundary and $\partial n$ denotes differentiation in the direction of a normal to the boundary. The initial pressure $p_0(x,y)=p(x,y,0)$ can be any real valued function. The solution is calculated using the finite difference method. Absorbing boundary conditions are implemented by stretching the coordinates of the governing equations into the complex domain in Fourier-transform-space using the method proposed by Berenger \cite{Berenger1994}.
 
 
 \section{Elliptical PDEs}
