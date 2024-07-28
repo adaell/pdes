@@ -66,17 +66,17 @@ import math
 # Parameters used by the discretisation scheme
 L_x=50.0
 L_y=50.0
-endTime=50.0
+endTime=10.0
 deltaT=0.01
-deltaX=0.05
-deltaY=0.05
+deltaX=0.10
+deltaY=0.10
 
 # Physical parameters
 rho=1.025
 c=2
 
 # save an image whenever t = [an integer multiple of this number]
-save_interval=0.10
+save_interval=0.05
 colorbar_min=-20
 colorbar_max=20
 
@@ -95,7 +95,7 @@ b_y_0 =(1,0)
 b_y_Ly=(1,0)
 
 # turn pml on/off
-pml_x_0=True
+pml_x_0=False
 pml_x_Lx=True
 pml_y_0=True
 pml_y_Ly=True
@@ -204,12 +204,24 @@ def getBoundaryType(n):
 	else:
 		return "false"
 
+@njit(parallel=True)
+def genBoundaryVector(boundary_vec):
+	for i in prange(0,num_nodes):
+		boundary_vec[i]=getBoundaryType(i)
+
 # returns the x and y coordinates of node n
 @njit()
 def get_XY(n):
 	x=(n % N) * deltaX
 	y=int(n / M) * deltaY
 	return (x,y)
+
+@njit(parallel=True)
+def genXYVector(x_vec,y_vec):
+	for i in prange(0,num_nodes):
+		(x,y)=get_XY(i)
+		x_vec[i]=x
+		y_vec[i]=y
 
 # Returns the value of sigma at node n
 @njit()
@@ -235,6 +247,11 @@ def getSigma(n):
 		sigmax=a*yy*yy-a*(L_y-wd)*(L_y-wd)
 	return sigmax+sigmay
 
+@njit(parallel=True)
+def genSigmaVec(sigma_vec):
+	for i in prange(0,num_nodes):
+		sigma_vec[i]=getSigma(i)
+
 # Returns an array with p(x,y,0)
 def get_p0(x,y):
 	p0=np.zeros(num_nodes, dtype=float)
@@ -259,42 +276,58 @@ def get_v0(x,y):
 		v0[i]=v_0(x,y)
 	return v0
 
+u_r_0=0.0
+if abs(b_x_0[1]) > 1e-8:
+	u_r_0=(1+deltaX*b_x_0[0]/b_x_0[1])
+u_r_Lx=0.0
+if abs(b_x_Lx[1]) > 1e-8:
+	u_r_Lx=(1-deltaX*b_x_Lx[0]/b_x_Lx[1])
+u_m=deltaT/(2.0*rho*deltaX)
+
 # updates u
 @njit(parallel=True)
-def get_u(u,p):
+def get_u(u,p,boundary_vec,x_vec,y_vec,sigma_vec):
 	for i in prange(0,num_nodes):
-		boundaryType=getBoundaryType(i)
-		(x,y)=get_XY(i)
-		m=deltaT/(2.0*rho*deltaX)
-		divisor=1-deltaT*getSigma(i)
+		boundaryType=boundary_vec[i]
+		x=x_vec[i]
+		y=y_vec[i]
+		divisor=1-deltaT*sigma_vec[i]
 		pxm=0.0
 		pxp=0.0
 		if boundaryType == "x_0" or boundaryType == "x_0_y_0" or boundaryType == "x_0_y_Ly":
-			pxp=float(u[i+1])
+			pxp=u[i+1]
 			if x_0_dirichlet is True:
 				pxm=g_x_0(x,y)/b_x_0[0]
 			else:
-				pxm=(-deltaX*g_x_0(x,y)/b_x_0[1])+(1+deltaX*b_x_0[0]/b_x_0[1])*p[i]
+				pxm=(-deltaX*g_x_0(x,y)/b_x_0[1])+u_r_0*p[i]
 		elif boundaryType == "x_Lx" or boundaryType == "x_Lx_y_0" or boundaryType == "x_Lx_y_Ly":
-			pxm=float(u[i-1])
+			pxm=u[i-1]
 			if x_Lx_dirichlet is True:
 				pxp=g_x_Lx(x,y)/b_x_Lx[0]
 			else:
-				pxp=(deltaX*g_x_Lx(x,y)/b_x_Lx[1])+(1-deltaX*b_x_Lx[0]/b_x_Lx[1])*p[i]
+				pxp=(deltaX*g_x_Lx(x,y)/b_x_Lx[1])+u_r_Lx*p[i]
 		else:
 			pxm=p[i-1]
 			pxp=p[i+1]
-		u[i]=(u[i]-m*pxp+m*pxm)/divisor
+		u[i]=(u[i]-u_m*pxp+u_m*pxm)/divisor
 	return u
+
+v_r_0=0
+if b_y_0[1] > 1e-8:
+	v_r_y0=(1+deltaY*b_y_0[0]/b_y_0[1])
+v_r_Ly=0
+if b_y_Ly[1] > 1e-8:
+	v_r_Ly=(1-deltaY*b_y_Ly[0]/b_y_Ly[1])
+v_m=deltaT/(2*rho*deltaY)
 
 # updates v
 @njit(parallel=True)
-def get_v(v,p):
+def get_v(v,p,boundary_vec,x_vec,y_vec,sigma_vec):
 	for i in prange(0,num_nodes):
-		boundaryType=getBoundaryType(i)
-		(x,y)=get_XY(i)
-		m=deltaT/(2*rho*deltaY)
-		divisor=1-deltaT*getSigma(i)
+		boundaryType=boundary_vec[i]
+		x=x_vec[i]
+		y=y_vec[i]
+		divisor=1-deltaT*sigma_vec[i]
 		pym=0
 		pyp=0
 		if boundaryType == "y_0" or boundaryType == "x_0_y_0" or boundaryType == "x_Lx_y_0":
@@ -302,27 +335,35 @@ def get_v(v,p):
 			if y_0_dirichlet is True:
 				pym=g_y_0(x,y)/b_y_0[0]
 			else:
-				pym=(-deltaY*g_y_0(x,y)/b_y_0[1])+(1+deltaY*b_y_0[0]/b_y_0[1])*p[i]
+				pym=(-deltaY*g_y_0(x,y)/b_y_0[1])+v_r_0*p[i]
 		elif boundaryType == "y_Ly" or boundaryType == "x_0_y_Ly" or boundaryType == "x_Lx_y_Ly":
 			pym=p[i-N]
 			if y_Ly_dirichlet is True:
 				pyp=g_y_Ly(x,y)/b_y_Ly[0]
 			else:
-				pyp=(deltaY*g_y_Ly(x,y)/b_y_Ly[1])+(1-deltaY*b_y_Ly[0]/b_y_Ly[1])*p[i]
+				pyp=(deltaY*g_y_Ly(x,y)/b_y_Ly[1])+v_r_Ly*p[i]
 		else:
 			pyp=p[i+N]
 			pym=p[i-N]
-		v[i]=(v[i]-m*pyp+m*pym)/divisor
+		v[i]=(v[i]-v_m*pyp+v_m*pym)/divisor
 	return v
+
+px_r_0=0
+if b_x_0[1] > 1e-8:
+	px_r_0=(1.0+b_x_0[0]*deltaX/b_x_0[1])
+px_r_Lx=0
+if b_x_Lx[1] > 1e-8:
+	px_r_Lx=(1.0-b_x_Lx[0]*deltaX/b_x_Lx[1])
+px_m=rho*c*c*deltaT/(2*deltaX)
 
 # updates p_x
 @njit(parallel=True)
-def get_p_x(p,u,t):
+def get_p_x(p,u,t,boundary_vec,x_vec,y_vec,sigma_vec):
 	for i in prange(0,num_nodes):
-		boundaryType=getBoundaryType(i)
-		(x,y)=get_XY(i)
-		m=rho*c*c*deltaT/(2*deltaX)
-		divisor=1+deltaT*nu(x,y)-deltaT*getSigma(i)
+		boundaryType=boundary_vec[i]
+		x=x_vec[i]
+		y=y_vec[i]
+		divisor=1+deltaT*nu(x,y)-deltaT*sigma_vec[i]
 		uxm=0
 		uxp=0
 		if boundaryType == "x_0" or boundaryType == "x_0_y_0" or boundaryType == "x_0_y_Ly":
@@ -330,27 +371,35 @@ def get_p_x(p,u,t):
 			if x_0_dirichlet is True:
 				uxm=g_x_0(x,y)/b_x_0[0]
 			else:
-				uxm=((-g_x_0(x,y)*deltaX/b_x_0[1])+(1.0+b_x_0[0]*deltaX/b_x_0[1])*p_old[i])
+				uxm=((-g_x_0(x,y)*deltaX/b_x_0[1])+px_r_0*p_old[i])
 		elif boundaryType == "x_Lx" or boundaryType == "x_Lx_y_0" or boundaryType == "x_Lx_y_Ly":
 			uxm=u[i-1]
 			if x_Lx_dirichlet is True:
 				uxp=g_x_Lx(x,y)/b_x_Lx[0]
 			else:
-				uxp=((g_x_Lx(x,y)*deltaX/b_x_Lx[1])+(1.0-b_x_Lx[0]*deltaX/b_x_Lx[1])*p_old[i])
+				uxp=((g_x_Lx(x,y)*deltaX/b_x_Lx[1])+px_r_Lx*p_old[i])
 		else:
 			uxm=u[i-1]
 			uxp=u[i+1]
-		p[i]=(p[i]-m*uxp+m*uxm+0.5*deltaT*q(x,y,t))/divisor
+		p[i]=(p[i]-px_m*uxp+px_m*uxm+0.5*deltaT*q(x,y,t))/divisor
 	return p
+
+py_r_0=0
+if b_y_0[1] > 1e-8:
+	py_r_0=(1.0+b_y_0[0]*deltaY/b_y_0[1])
+py_r_L=0
+if b_y_Ly[1] > 1e-8:
+	py_r_L=(1.0-b_y_Ly[0]*deltaY/b_y_Ly[1])
+py_m=rho*c*c*deltaT/(2*deltaY)
 
 # updates p_y
 @njit(parallel=True)
-def get_p_y(p,v,t):
+def get_p_y(p,v,t,boundary_vec,x_vec,y_vec,sigma_vec):
 	for i in prange(0,num_nodes):
-		boundaryType=getBoundaryType(i)
-		(x,y)=get_XY(i)
-		m=rho*c*c*deltaT/(2*deltaY)
-		divisor=1+deltaT*nu(x,y)-deltaT*getSigma(i)
+		boundaryType=boundary_vec[i]
+		x=x_vec[i]
+		y=y_vec[i]
+		divisor=1+deltaT*nu(x,y)-deltaT*sigma_vec[i]
 		vym=0
 		vyp=0
 		if boundaryType == "y_0" or boundaryType == "x_0_y_0" or boundaryType == "x_Lx_y_0":
@@ -358,17 +407,17 @@ def get_p_y(p,v,t):
 			if y_0_dirichlet is True:
 				vym=g_y_0(x,y)/b_y_0[0]
 			else:
-				vym=((-g_y_0(x,y)*deltaY/b_y_0[1])+(1.0+b_y_0[0]*deltaY/b_y_0[1])*p_old[i])
+				vym=((-g_y_0(x,y)*deltaY/b_y_0[1])+py_r_0*p_old[i])
 		elif boundaryType == "y_Ly" or boundaryType == "x_0_y_Ly" or boundaryType == "x_Lx_y_Ly":
 			vym=v[i-N]
 			if y_Ly_dirichlet is True:
 				vyp=g_y_Ly(x,y)/b_y_Ly[0]
 			else:
-				vyp=((g_y_Ly(x,y)*deltaY/b_y_Ly[1])+(1.0-b_y_Ly[0]*deltaY/b_y_Ly[1])*p_old[i])
+				vyp=((g_y_Ly(x,y)*deltaY/b_y_Ly[1])+py_r_L*p_old[i])
 		else:
 			vym=v[i-N]
 			vyp=v[i+N]
-		p[i]=(p[i]-m*vyp+m*vym+0.5*deltaT*q(x,y,t))/divisor
+		p[i]=(p[i]-py_m*vyp+py_m*vym+0.5*deltaT*q(x,y,t))/divisor
 	return p
 
 # Saves an image
@@ -390,20 +439,29 @@ def saveImage(u,t):
 # Iterates over time
 def temporalLoop():
 	px=0.5*get_p0(0,0)
-	py=0.5*get_p0(0,0)
+	py=px
 	u=get_u0(0,0)
 	v=get_v0(0,0)
 	saveImage(px+py,0)
+
+	# Do these calculations only once
+	boundary_vec=np.empty(num_nodes, dtype='U9')
+	genBoundaryVector(boundary_vec)
+	x_vec=np.zeros(num_nodes, dtype=float)
+	y_vec=np.zeros(num_nodes, dtype=float)
+	genXYVector(x_vec,y_vec)
+	sigma_vec=np.zeros(num_nodes, dtype=float)
+	genSigmaVec(sigma_vec)
 
 	t=0
 	next_image=save_interval
 	while t < endTime:
 		# find the next solution
 		t+=deltaT
-		u=get_u(u,px+py)
-		v=get_v(v,px+py)
-		px=get_p_x(px,u,t)
-		py=get_p_y(py,v,t)
+		u=get_u(u,px+py,boundary_vec,x_vec,y_vec,sigma_vec)
+		v=get_v(v,px+py,boundary_vec,x_vec,y_vec,sigma_vec)
+		px=get_p_x(px,u,t,boundary_vec,x_vec,y_vec,sigma_vec)
+		py=get_p_y(py,v,t,boundary_vec,x_vec,y_vec,sigma_vec)
 
         # save a picture
 		if abs(t - next_image) < 0.001:
@@ -417,7 +475,5 @@ def main():
 	if (c >= deltaY / deltaT):
 		print("Warning: Recommend that you decrease deltaY")
 	temporalLoop()
-
-
 
 main()
