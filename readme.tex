@@ -2,7 +2,8 @@
 \usepackage{amsmath}
 \usepackage{amssymb}
 \usepackage{multicol}
-
+\usepackage[backend=biber]{biblatex}
+\addbibresource{readme.bib}
 
 \begin{document}
 \title{Notes}
@@ -11,7 +12,7 @@
 
 \subsection{\texttt{diff\_adv\_2D.py}} 
 
-Calculates the solution to the two-dimensional diffusion-advection / heat-convection equation
+Calculates the solution to the two-dimensional diffusion-advection/heat-convection equation
 \begin{equation*}
 \frac{\partial u}{\partial t} = D(x,y) \hspace{0.1cm} \nabla^{2} u  - \mathbf{\hat{v}} \cdot \nabla u + q(x,y,t),
 \end{equation*}
@@ -19,7 +20,7 @@ using cartesian coordinates on a uniform mesh, on the domain $\Omega$ bound by $
 \begin{equation*}
 \mathbf{\hat{v}} = v_x \mathbf{\hat{\imath}} + v_y \mathbf{\hat{\jmath}}
 \end{equation*}
-describes the direction of advection, $D(x,y)$ is the diffusivity and $q(x,y,t)$ is a source/sink term. The program assumes Robin boundary conditions
+describes the direction of advection/convection, $D(x,y)$ is the diffusivity/conductivity and $q(x,y,t)$ is a source/sink term. The program assumes Robin boundary conditions
 \begin{equation*}
 a \hspace{0.1cm} u(x,y,t) + b \hspace{0.1cm} \frac{\partial u}{\partial n} = g(x,y)
 \end{equation*}
@@ -38,6 +39,22 @@ a \hspace{0.1cm} u(x,y,t) + b \hspace{0.1cm} \frac{\partial u}{\partial n} = g(x
 \end{equation*}
 where $a$ and $b$ are real scalars, $g(x,y)$ is an arbitrary function on the boundary and $\partial n$ denotes differentiation in the direction of a normal to the boundary. The initial pressure $p_0(x,y)=p(x,y,0)$ can be any real valued function. The solution is calculated using the finite difference method.
 
+
+\subsection{\texttt{wave\_2D\_PML.py}}
+Calculates the solution to the two-dimensional acoustic wave equation
+\begin{equation*}
+\begin{aligned}
+\frac{\partial \mathbf{\hat{v}}}{\partial t} &= - \frac{1}{\rho} \nabla p,\\
+\frac{\partial p}{\partial t} + \nu(x,y) \hspace{0.1cm} p &= -c^2 \rho \nabla \cdot \mathbf{\hat{v}} + q(x,y,t),
+\end{aligned}
+\end{equation*}
+where $\mathbf{\hat{v}}(x,y,t)$ describes the velocity at each point in the mesh and $p(x,y,t)$ describes the pressure at each point in the mesh. Solution is calcualted using cartesian coordinates and a uniform mesh, on the domain $\Omega$ bound by $x \in [0,L_x]$ and $y \in [0,L_y]$, where $\nu(x,y)$ is a damping term, $c$ is the speed of sound and $q(x,y,t)$ is a source/sink term. The program assumes Robin boundary conditions
+\begin{equation*}
+a \hspace{0.1cm} u(x,y,t) + b \hspace{0.1cm} \frac{\partial u}{\partial n} = g(x,y),
+\end{equation*}
+where $a$ and $b$ are real scalars, $g(x,y)$ is an arbitrary function on the boundary and $\partial n$ denotes differentiation in the direction of a normal to the boundary. The initial pressure $p_0(x,y)=p(x,y,0)$ can be any real valued function. The solution is calculated using the finite difference method. Perfectly matched layers are implemented by stretching the coordinates of the governing equations into the complex domain in Fourier-transform-space using the method proposed by Berenger \cite{Berenger1994}.
+
+
 \section{Elliptical PDEs}
 \subsection{\texttt{helmholtz.py}} 
 Calculates the solution to the nonhomogenous Helmholtz equation
@@ -52,9 +69,7 @@ where $a$ and $b$ are real scalars, $g(x,y)$ is an arbitrary function on the bou
 \newline
 \texttt{keywords: Laplace's equation, Poisson's equation.}
 
-
-
-
-
+\section{References}
+\printbibliography[title={Articles},type=article,sorting=nyt,heading=subbibliography]
 
 \end{document}
