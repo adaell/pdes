@@ -64,9 +64,9 @@ import matplotlib.pyplot as plt
 import math
 
 # Parameters used by the discretisation scheme
-L_x=50.0
-L_y=50.0
-endTime=20.0
+L_x=100.0
+L_y=70.0
+endTime=100.0
 deltaT=0.01
 deltaX=0.05
 deltaY=0.05
@@ -122,7 +122,7 @@ def g_y_Ly(x,y):
 @njit()
 def q(x,y,t):
 	# Pulse 1
-	pulseCenterX=0.5*L_x
+	pulseCenterX=0.25*L_x
 	pulseCenterY=0.5*L_y
 	pulseAmplitude=10000.0
 	pulsePeriod=2
@@ -151,6 +151,8 @@ def v_0(x,y):
 
 #############################################################################
 
+VERBOSE=True
+
 # Damping parameter for the perfectly matched layers
 sigma_x_0=10.0
 sigma_y_0=10.0
@@ -177,6 +179,11 @@ y_0_dirichlet=isDirichlet(b_y_0)
 y_Ly_dirichlet=isDirichlet(b_y_Ly)
 oneDeltaT=(1/deltaT)
 cSquared=c*c
+
+@njit()
+def verbosemsg(message):
+	if VERBOSE is True:
+		print(message)
 
 # Returns boundary information for node n
 @njit()
@@ -208,19 +215,18 @@ def getBoundaryType(n):
 @njit()
 def get_XY(n):
 	x=(n % N) * deltaX
-	y=int(n / M) * deltaY
+	y=int(n / N) * deltaY
 	return (x,y)
 
 # Returns the value of sigma at node n
 @njit()
 def getSigma(n):
 	x = n % N
-	y = int(n / M)
+	y = int(n / N)
 	xx = deltaX*x
 	yy = deltaY*y
 	sigmax=0
 	sigmay=0
-	nn=1
 	if pml_x_0 is True and x <= pml_width:
 		sigmax=(sigma_x_0/(pml_width*deltaX))*xx*xx-sigma_x_0
 	if pml_x_Lx is True and x >= (N - pml_width):
@@ -232,8 +238,33 @@ def getSigma(n):
 	if pml_y_Ly is True and y >= (M - pml_width):
 		wd=pml_width*deltaY
 		a=(-sigma_y_Ly/(2*wd*L_y-wd*wd))
-		sigmax=a*yy*yy-a*(L_y-wd)*(L_y-wd)
+		sigmay=a*yy*yy-a*(L_y-wd)*(L_y-wd)
 	return sigmax+sigmay
+
+# Calculates sigma for each node in the mesh
+@njit
+def getSigma_v(sigma_v):
+	for i in prange(0,num_nodes):
+		sigma_v[i]=getSigma(i)
+	return sigma_v
+
+# Calculates nu(x,y) for each node in the mesh
+@njit
+def getNu_v(nu_v):
+	for i in prange(0,num_nodes):
+		(x,y)=get_XY(i)
+		nu_v[i]=nu(x,y)
+	return nu_v
+
+# Calculates the divisors for u, v, p_x, p_y 
+@njit
+def get_divisors(div_u,div_v,div_p_x,div_p_y,sigma_v,nu_v):
+	for i in prange(0, num_nodes):
+		div_u[i]=1.0-deltaT*sigma_v[i]
+		div_v[i]=1.0-deltaT*sigma_v[i]
+		div_p_x[i]=1.0+deltaT*nu_v[i]-deltaT*sigma_v[i]
+		div_p_y[i]=1.0+deltaT*nu_v[i]-deltaT*sigma_v[i]
+	return (div_u,div_v,div_p_x,div_p_y)
 
 # Returns an array with p(x,y,0)
 def get_p0(x,y):
@@ -269,12 +300,11 @@ u_m=deltaT/(2.0*rho*deltaX)
 
 # updates u
 @njit(parallel=True)
-def get_u(u,p):
+def get_u(u,p,div_u):
 	for i in prange(0,num_nodes):
 		boundaryType=getBoundaryType(i)
 		(x,y)=get_XY(i)
-		m=deltaT/(2.0*rho*deltaX)
-		divisor=1-deltaT*getSigma(i)
+		divisor=div_u[i]
 		pxm=0.0
 		pxp=0.0
 		if boundaryType == "x_0" or boundaryType == "x_0_y_0" or boundaryType == "x_0_y_Ly":
@@ -305,12 +335,11 @@ v_m=deltaT/(2*rho*deltaY)
 
 # updates v
 @njit(parallel=True)
-def get_v(v,p):
+def get_v(v,p,div_v):
 	for i in prange(0,num_nodes):
 		boundaryType=getBoundaryType(i)
 		(x,y)=get_XY(i)
-		m=deltaT/(2*rho*deltaY)
-		divisor=1-deltaT*getSigma(i)
+		divisor=div_v[i]
 		pym=0
 		pyp=0
 		if boundaryType == "y_0" or boundaryType == "x_0_y_0" or boundaryType == "x_Lx_y_0":
@@ -341,12 +370,11 @@ px_m=rho*c*c*deltaT/(2*deltaX)
 
 # updates p_x
 @njit(parallel=True)
-def get_p_x(p,u,t):
+def get_p_x(p,u,t,div_p_x):
 	for i in prange(0,num_nodes):
 		boundaryType=getBoundaryType(i)
 		(x,y)=get_XY(i)
-		m=rho*c*c*deltaT/(2*deltaX)
-		divisor=1+deltaT*nu(x,y)-deltaT*getSigma(i)
+		divisor=div_p_x[i]
 		uxm=0
 		uxp=0
 		if boundaryType == "x_0" or boundaryType == "x_0_y_0" or boundaryType == "x_0_y_Ly":
@@ -354,13 +382,13 @@ def get_p_x(p,u,t):
 			if x_0_dirichlet is True:
 				uxm=g_x_0(x,y)/b_x_0[0]
 			else:
-				uxm=((-g_x_0(x,y)*deltaX/b_x_0[1])+px_r_0*p_old[i])
+				uxm=((-g_x_0(x,y)*deltaX/b_x_0[1])+px_r_0*p[i])
 		elif boundaryType == "x_Lx" or boundaryType == "x_Lx_y_0" or boundaryType == "x_Lx_y_Ly":
 			uxm=u[i-1]
 			if x_Lx_dirichlet is True:
 				uxp=g_x_Lx(x,y)/b_x_Lx[0]
 			else:
-				uxp=((g_x_Lx(x,y)*deltaX/b_x_Lx[1])+px_r_Lx*p_old[i])
+				uxp=((g_x_Lx(x,y)*deltaX/b_x_Lx[1])+px_r_Lx*p[i])
 		else:
 			uxm=u[i-1]
 			uxp=u[i+1]
@@ -377,12 +405,11 @@ py_m=rho*c*c*deltaT/(2*deltaY)
 
 # updates p_y
 @njit(parallel=True)
-def get_p_y(p,v,t):
+def get_p_y(p,v,t,div_p_y):
 	for i in prange(0,num_nodes):
 		boundaryType=getBoundaryType(i)
 		(x,y)=get_XY(i)
-		m=rho*c*c*deltaT/(2*deltaY)
-		divisor=1+deltaT*nu(x,y)-deltaT*getSigma(i)
+		divisor=div_p_y[i]
 		vym=0
 		vyp=0
 		if boundaryType == "y_0" or boundaryType == "x_0_y_0" or boundaryType == "x_Lx_y_0":
@@ -390,13 +417,13 @@ def get_p_y(p,v,t):
 			if y_0_dirichlet is True:
 				vym=g_y_0(x,y)/b_y_0[0]
 			else:
-				vym=((-g_y_0(x,y)*deltaY/b_y_0[1])+py_r_0*p_old[i])
+				vym=((-g_y_0(x,y)*deltaY/b_y_0[1])+py_r_0*p[i])
 		elif boundaryType == "y_Ly" or boundaryType == "x_0_y_Ly" or boundaryType == "x_Lx_y_Ly":
 			vym=v[i-N]
 			if y_Ly_dirichlet is True:
 				vyp=g_y_Ly(x,y)/b_y_Ly[0]
 			else:
-				vyp=((g_y_Ly(x,y)*deltaY/b_y_Ly[1])+py_r_L*p_old[i])
+				vyp=((g_y_Ly(x,y)*deltaY/b_y_Ly[1])+py_r_L*p[i])
 		else:
 			vym=v[i-N]
 			vyp=v[i+N]
@@ -425,7 +452,6 @@ def temporalLoop():
 	py=0.5*get_p0(0,0)
 	u=get_u0(0,0)
 	v=get_v0(0,0)
-	# saveImage(px+py,0)
 
 	t=0
 	next_image=save_interval
@@ -434,14 +460,27 @@ def temporalLoop():
 	timestamp=[0]*num_images
 	images[0]=px+py
 	image_counter=1
+
+	# Calculate these values just once
+	sigma_v=np.zeros(num_nodes,dtype=float)
+	sigma_v=getSigma_v(sigma_v)
+	nu_v=np.zeros(num_nodes,dtype=float)
+	nu_v=getNu_v(nu_v)
+	div_u=np.zeros(num_nodes,dtype=float)
+	div_v=np.zeros(num_nodes,dtype=float)
+	div_p_x=np.zeros(num_nodes,dtype=float)
+	div_p_y=np.zeros(num_nodes,dtype=float)
+	(div_u,div_v,div_p_x,div_p_y)=get_divisors(div_u,div_v,div_p_x,div_p_y,sigma_v,nu_v)
+
+	verbosemsg("Working out p(x,y)")
 	while t < endTime:
 		# find the next solution
 		t+=deltaT
 		pxpy=px+py
-		u=get_u(u,pxpy)
-		v=get_v(v,pxpy)
-		px=get_p_x(px,u,t)
-		py=get_p_y(py,v,t)
+		u=get_u(u,pxpy,div_u)
+		v=get_v(v,pxpy,div_v)
+		px=get_p_x(px,u,t,div_p_x)
+		py=get_p_y(py,v,t,div_p_y)
 
         # save a picture
 		if abs(t - next_image) < 0.001:
@@ -451,6 +490,7 @@ def temporalLoop():
 			image_counter+=1
 			next_image+=save_interval
 	
+	verbosemsg("Saving the images")
 	for i in range(0,num_images):
 		saveImage(images[i],timestamp[i])
 
@@ -461,6 +501,5 @@ def main():
 		print("Warning: Recommend that you decrease deltaY")
 	temporalLoop()
 
-
-
-main()
+if __name__ == '__main__':
+	main()
