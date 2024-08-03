@@ -77,8 +77,8 @@ c=2
 
 # save an image whenever t = [an integer multiple of this number]
 save_interval=0.05
-colorbar_min=-20
-colorbar_max=20
+colorbar_min=-10
+colorbar_max=10
 
 # Robin parameters for each boundary
 #
@@ -178,6 +178,7 @@ x_Lx_dirichlet=isDirichlet(b_x_Lx)
 y_0_dirichlet=isDirichlet(b_y_0)
 y_Ly_dirichlet=isDirichlet(b_y_Ly)
 oneDeltaT=(1/deltaT)
+halfDeltaT=0.5*deltaT
 cSquared=c*c
 
 @njit()
@@ -242,14 +243,14 @@ def getSigma(n):
 	return sigmax+sigmay
 
 # Calculates sigma for each node in the mesh
-@njit
+@njit(parallel=True)
 def getSigma_v(sigma_v):
 	for i in prange(0,num_nodes):
 		sigma_v[i]=getSigma(i)
 	return sigma_v
 
 # Calculates nu(x,y) for each node in the mesh
-@njit
+@njit(parallel=True)
 def getNu_v(nu_v):
 	for i in prange(0,num_nodes):
 		(x,y)=get_XY(i)
@@ -257,13 +258,13 @@ def getNu_v(nu_v):
 	return nu_v
 
 # Calculates the divisors for u, v, p_x, p_y 
-@njit
+@njit(parallel=True)
 def get_divisors(div_u,div_v,div_p_x,div_p_y,sigma_v,nu_v):
 	for i in prange(0, num_nodes):
-		div_u[i]=1.0-deltaT*sigma_v[i]
-		div_v[i]=1.0-deltaT*sigma_v[i]
-		div_p_x[i]=1.0+deltaT*nu_v[i]-deltaT*sigma_v[i]
-		div_p_y[i]=1.0+deltaT*nu_v[i]-deltaT*sigma_v[i]
+		div_u[i]=1.0/(1.0-deltaT*sigma_v[i])
+		div_v[i]=1.0/(1.0-deltaT*sigma_v[i])
+		div_p_x[i]=1.0/(1.0+deltaT*nu_v[i]-deltaT*sigma_v[i])
+		div_p_y[i]=1.0/(1.0+deltaT*nu_v[i]-deltaT*sigma_v[i])
 	return (div_u,div_v,div_p_x,div_p_y)
 
 # Returns an array with p(x,y,0)
@@ -290,6 +291,37 @@ def get_v0(x,y):
 		v0[i]=v_0(x,y)
 	return v0
 
+# Returns five arrays of booleans with the boundary decisions in the x direction
+@njit(parallel=True)
+def get_x_decisions(x_b0,x_b1,x_b2,x_b3,x_b4):
+	for i in prange(0,num_nodes):
+		boundaryType=getBoundaryType(i)
+		(x,y)=get_XY(i)
+		if boundaryType == "x_0" or boundaryType == "x_0_y_0" or boundaryType == "x_0_y_Ly":
+			x_b0[i]=1.0
+			x_b1[i]=int(x_0_dirichlet is True)
+		elif boundaryType == "x_Lx" or boundaryType == "x_Lx_y_0" or boundaryType == "x_Lx_y_Ly":
+			x_b2[i]=1.0
+			x_b3[i]=int(x_Lx_dirichlet is True)
+		else:
+			x_b4[i]=1.0
+	return (x_b0,x_b1,x_b2,x_b3,x_b4)
+
+# Returns five arrays of booleans with the boundary decisions in the y direction
+@njit(parallel=True)
+def get_y_decisions(y_b0,y_b1,y_b2,y_b3,y_b4):
+	for i in prange(0,num_nodes):
+		boundaryType=getBoundaryType(i)
+		if boundaryType == "y_0" or boundaryType == "x_0_y_0" or boundaryType == "x_Lx_y_0":
+			y_b0[i]=1.0
+			y_b1[i]=int(y_0_dirichlet is True)
+		elif boundaryType == "y_Ly" or boundaryType == "x_0_y_Ly" or boundaryType == "x_Lx_y_Ly":
+			y_b2[i]=1.0
+			y_b3[i]=int(y_Ly_dirichlet is True)
+		else:
+			y_b4[i]=1.0
+	return (y_b0,y_b1,y_b2,y_b3,y_b4)
+
 u_r_0=0.0
 if abs(b_x_0[1]) > 1e-8:
 	u_r_0=(1+deltaX*b_x_0[0]/b_x_0[1])
@@ -298,67 +330,79 @@ if abs(b_x_Lx[1]) > 1e-8:
 	u_r_Lx=(1-deltaX*b_x_Lx[0]/b_x_Lx[1])
 u_m=deltaT/(2.0*rho*deltaX)
 
-# updates u
 @njit(parallel=True)
-def get_u(u,p,div_u):
+def get_u_boundaries(u_x0,u_xL,x_b0,x_b1,x_b2,x_b3,x_b4):
 	for i in prange(0,num_nodes):
 		boundaryType=getBoundaryType(i)
 		(x,y)=get_XY(i)
-		divisor=div_u[i]
+		if x_b0[i]:
+			if x_b1[i]:
+				u_x0[i]=g_x_0(x,y)/b_x_0[0]
+			else:
+				u_x0[i]=(-deltaX*g_x_0(x,y)/b_x_0[1])
+		elif x_b2[i]:
+			if x_b3[i]:
+				u_xL[i]=g_x_Lx(x,y)/b_x_Lx[0]
+			else:
+				u_xL[i]=(deltaX*g_x_Lx(x,y)/b_x_Lx[1])
+	return (u_x0,u_xL)
+
+# updates u
+@njit(parallel=True)
+def get_u(u,p,div_u,u_x0,u_xL,x_b0,x_b1,x_b2,x_b3,x_b4):
+	for i in prange(0,num_nodes):
 		pxm=0.0
 		pxp=0.0
-		if boundaryType == "x_0" or boundaryType == "x_0_y_0" or boundaryType == "x_0_y_Ly":
-			pxp=float(u[i+1])
-			if x_0_dirichlet is True:
-				pxm=g_x_0(x,y)/b_x_0[0]
-			else:
-				pxm=(-deltaX*g_x_0(x,y)/b_x_0[1])+u_r_0*p[i]
-		elif boundaryType == "x_Lx" or boundaryType == "x_Lx_y_0" or boundaryType == "x_Lx_y_Ly":
-			pxm=float(u[i-1])
-			if x_Lx_dirichlet is True:
-				pxp=g_x_Lx(x,y)/b_x_Lx[0]
-			else:
-				pxp=(deltaX*g_x_Lx(x,y)/b_x_Lx[1])+u_r_Lx*p[i]
+		if x_b4[i]:
+			u[i]=(u[i]+u_m*((p[i-1])-(p[i+1])))*div_u[i]
+		elif x_b0[i]:
+			u[i]=(u[i]+u_m*((u_x0[i]+x_b1[i]*u_r_0*p[i])-(u[i+1])))*div_u[i]
+		elif x_b2[i]:
+			u[i]=(u[i]+u_m*((u[i-1])-(u_xL[i]+x_b2[i]*u_r_Lx*p[i])))*div_u[i]
 		else:
-			pxm=p[i-1]
-			pxp=p[i+1]
-		u[i]=(u[i]-u_m*pxp+u_m*pxm)/divisor
+			print("unknown error")
 	return u
 
-v_r_0=0
+v_r_y0=0.0
 if b_y_0[1] > 1e-8:
 	v_r_y0=(1+deltaY*b_y_0[0]/b_y_0[1])
-v_r_Ly=0
+v_r_Ly=0.0
 if b_y_Ly[1] > 1e-8:
 	v_r_Ly=(1-deltaY*b_y_Ly[0]/b_y_Ly[1])
 v_m=deltaT/(2*rho*deltaY)
 
+@njit(parallel=True)
+def get_v_boundaries(v_y0,v_yL,y_b0,y_b1,y_b2,y_b3,y_b4):
+	for i in prange(0,num_nodes):
+		(x,y)=get_XY(i)
+		if y_b0[i]:
+			if y_b1[i]:
+				v_y0[i]=g_y_0(x,y)/b_y_0[0]
+			else:
+				v_y0[i]=(-deltaY*g_y_0(x,y)/b_y_0[1])
+		elif y_b2[i]:
+			if y_b3[i]:
+				v_yL[i]=g_y_Ly(x,y)/b_y_Ly[0]
+			else:
+				v_yL[i]=(deltaY*g_y_Ly(x,y)/b_y_Ly[1])
+	return (v_y0,v_yL)
+
 # updates v
 @njit(parallel=True)
-def get_v(v,p,div_v):
+def get_v(v,p,div_v,v_y0,v_yL,y_b0,y_b1,y_b2,y_b3,y_b4):
 	for i in prange(0,num_nodes):
-		boundaryType=getBoundaryType(i)
-		(x,y)=get_XY(i)
-		divisor=div_v[i]
-		pym=0
-		pyp=0
-		if boundaryType == "y_0" or boundaryType == "x_0_y_0" or boundaryType == "x_Lx_y_0":
-			pyp=p[i+N]
-			if y_0_dirichlet is True:
-				pym=g_y_0(x,y)/b_y_0[0]
-			else:
-				pym=(-deltaY*g_y_0(x,y)/b_y_0[1])+v_r_0*p[i]
-		elif boundaryType == "y_Ly" or boundaryType == "x_0_y_Ly" or boundaryType == "x_Lx_y_Ly":
-			pym=p[i-N]
-			if y_Ly_dirichlet is True:
-				pyp=g_y_Ly(x,y)/b_y_Ly[0]
-			else:
-				pyp=(deltaY*g_y_Ly(x,y)/b_y_Ly[1])+b_y_Ly*p[i]
+		pym=0.0
+		pyp=0.0
+		if y_b4[i] == 1.0:
+			v[i]=(v[i]+v_m*((p[i-N])-(p[i+N])))*div_v[i]
+		elif y_b0[i] == 1.0:
+			v[i]=(v[i]+v_m*((v_y0[i]+y_b1[i]*v_r_y0*p[i])-(p[i+N])))*div_v[i]
+		elif y_b2[i] == 1.0:
+			v[i]=(v[i]+v_m*((p[i-N])-(v_yL[i]+y_b3[i]*v_r_Ly*p[i])))*div_v[i]
 		else:
-			pyp=p[i+N]
-			pym=p[i-N]
-		v[i]=(v[i]-v_m*pyp+v_m*pym)/divisor
+			print("Unknown error")
 	return v
+
 
 px_r_0=0
 if b_x_0[1] > 1e-8:
@@ -368,31 +412,38 @@ if b_x_Lx[1] > 1e-8:
 	px_r_Lx=(1.0-b_x_Lx[0]*deltaX/b_x_Lx[1])
 px_m=rho*c*c*deltaT/(2*deltaX)
 
+@njit(parallel=True)
+def get_p_x_boundaries(p_x_x0,p_x_xL,x_b0,x_b1,x_b2,x_b3,x_b4):
+	for i in prange(0,num_nodes):
+		(x,y)=get_XY(i)
+		if x_b0[i]:
+			if x_b1[i]:
+				p_x_x0[i]=g_x_0(x,y)/b_x_0[0]
+			else:
+				p_x_x0[i]=((-g_x_0(x,y)*deltaX/b_x_0[1]))
+		elif x_b2[i]:
+			if x_b3[i]:
+				p_x_xL[i]=g_x_Lx(x,y)/b_x_Lx[0]
+			else:
+				p_x_xL[i]=((g_x_Lx(x,y)*deltaX/b_x_Lx[1]))
+	return (p_x_x0,p_x_xL)
+
 # updates p_x
 @njit(parallel=True)
-def get_p_x(p,u,t,div_p_x):
+def get_p_x(p,u,t,div_p_x,p_x_x0,p_x_xL,x_b0,x_b1,x_b2,x_b3,x_b4):
 	for i in prange(0,num_nodes):
 		boundaryType=getBoundaryType(i)
 		(x,y)=get_XY(i)
-		divisor=div_p_x[i]
 		uxm=0
 		uxp=0
-		if boundaryType == "x_0" or boundaryType == "x_0_y_0" or boundaryType == "x_0_y_Ly":
-			uxp=u[i+1]
-			if x_0_dirichlet is True:
-				uxm=g_x_0(x,y)/b_x_0[0]
-			else:
-				uxm=((-g_x_0(x,y)*deltaX/b_x_0[1])+px_r_0*p[i])
-		elif boundaryType == "x_Lx" or boundaryType == "x_Lx_y_0" or boundaryType == "x_Lx_y_Ly":
-			uxm=u[i-1]
-			if x_Lx_dirichlet is True:
-				uxp=g_x_Lx(x,y)/b_x_Lx[0]
-			else:
-				uxp=((g_x_Lx(x,y)*deltaX/b_x_Lx[1])+px_r_Lx*p[i])
+		if x_b4[i]:
+			p[i]=(p[i]+px_m*((u[i-1])-(u[i+1]))+halfDeltaT*q(x,y,t))*div_p_x[i]
+		elif x_b0[i]:
+			p[i]=(p[i]+px_m*((p_x_x0[i]+x_b1[i]*px_r_0*p[i])-(u[i+1]))+halfDeltaT*q(x,y,t))*div_p_x[i]
+		elif x_b2[i]:
+			p[i]=(p[i]+px_m*((u[i-1])-(p_x_xL[i]+x_b3[i]*px_r_Lx*p[i]))+halfDeltaT*q(x,y,t))*div_p_x[i]
 		else:
-			uxm=u[i-1]
-			uxp=u[i+1]
-		p[i]=(p[i]-px_m*uxp+px_m*uxm+0.5*deltaT*q(x,y,t))/divisor
+			print("unknown error")
 	return p
 
 py_r_0=0
@@ -403,31 +454,38 @@ if b_y_Ly[1] > 1e-8:
 	py_r_L=(1.0-b_y_Ly[0]*deltaY/b_y_Ly[1])
 py_m=rho*c*c*deltaT/(2*deltaY)
 
+@njit(parallel=True)
+def get_p_y_boundaries(p_y_y0,p_y_yL,y_b0,y_b1,y_b2,y_b3,y_b4):
+	for i in prange(0,num_nodes):
+		(x,y)=get_XY(i)
+		if y_b0[i]:
+			if y_b1[i]:
+				p_y_y0[i]=g_y_0(x,y)/b_y_0[0]
+			else:
+				p_y_y0[i]=(-g_y_0(x,y)*deltaY/b_y_0[1])
+		elif y_b2[i]:
+			if y_b3[i]:
+				p_y_yL[i]=g_y_Ly(x,y)/b_y_Ly[0]
+			else:
+				p_y_yL[i]=(g_y_Ly(x,y)*deltaY/b_y_Ly[1])
+	return (p_y_y0,p_y_yL)
+
 # updates p_y
 @njit(parallel=True)
-def get_p_y(p,v,t,div_p_y):
+def get_p_y(p,v,t,div_p_y,p_y_y0,p_y_yL,y_b0,y_b1,y_b2,y_b3,y_b4):
 	for i in prange(0,num_nodes):
 		boundaryType=getBoundaryType(i)
 		(x,y)=get_XY(i)
-		divisor=div_p_y[i]
 		vym=0
 		vyp=0
-		if boundaryType == "y_0" or boundaryType == "x_0_y_0" or boundaryType == "x_Lx_y_0":
-			vyp=v[i+N]
-			if y_0_dirichlet is True:
-				vym=g_y_0(x,y)/b_y_0[0]
-			else:
-				vym=((-g_y_0(x,y)*deltaY/b_y_0[1])+py_r_0*p[i])
-		elif boundaryType == "y_Ly" or boundaryType == "x_0_y_Ly" or boundaryType == "x_Lx_y_Ly":
-			vym=v[i-N]
-			if y_Ly_dirichlet is True:
-				vyp=g_y_Ly(x,y)/b_y_Ly[0]
-			else:
-				vyp=((g_y_Ly(x,y)*deltaY/b_y_Ly[1])+py_r_L*p[i])
+		if y_b4[i]:
+			p[i]=(p[i]+py_m*((v[i-N])-(v[i+N]))+halfDeltaT*q(x,y,t))*div_p_y[i]
+		if y_b0[i]:
+			p[i]=(p[i]+py_m*((p_y_y0[i]+y_b1[i]*py_r_0*p[i])-(v[i+N]))+halfDeltaT*q(x,y,t))*div_p_y[i]
+		elif y_b2[i]:
+			p[i]=(p[i]+py_m*((v[i-N])-(p_y_yL[i]+y_b3[i]*py_r_L*p[i]))+halfDeltaT*q(x,y,t))*div_p_y[i]
 		else:
-			vym=v[i-N]
-			vyp=v[i+N]
-		p[i]=(p[i]-py_m*vyp+py_m*vym+0.5*deltaT*q(x,y,t))/divisor
+			print("unknown error")
 	return p
 
 # Saves an image
@@ -462,6 +520,8 @@ def temporalLoop():
 	image_counter=1
 
 	# Calculate these values just once
+	verbosemsg("Preliminary calculations...")
+
 	sigma_v=np.zeros(num_nodes,dtype=float)
 	sigma_v=getSigma_v(sigma_v)
 	nu_v=np.zeros(num_nodes,dtype=float)
@@ -472,15 +532,41 @@ def temporalLoop():
 	div_p_y=np.zeros(num_nodes,dtype=float)
 	(div_u,div_v,div_p_x,div_p_y)=get_divisors(div_u,div_v,div_p_x,div_p_y,sigma_v,nu_v)
 
+	x_b0=np.zeros(num_nodes,dtype=float)
+	x_b1=np.zeros(num_nodes,dtype=float)
+	x_b2=np.zeros(num_nodes,dtype=float)
+	x_b3=np.zeros(num_nodes,dtype=float)
+	x_b4=np.zeros(num_nodes,dtype=float)
+	y_b0=np.zeros(num_nodes,dtype=float)
+	y_b1=np.zeros(num_nodes,dtype=float)
+	y_b2=np.zeros(num_nodes,dtype=float)
+	y_b3=np.zeros(num_nodes,dtype=float)
+	y_b4=np.zeros(num_nodes,dtype=float)
+	(x_b0,x_b1,x_b2,x_b3,x_b4)=get_x_decisions(x_b0,x_b1,x_b2,x_b3,x_b4)
+	(y_b0,y_b1,y_b2,y_b3,y_b4)=get_y_decisions(y_b0,y_b1,y_b2,y_b3,y_b4)
+
+	u_x0=np.zeros(num_nodes,dtype=float)
+	u_xL=np.zeros(num_nodes,dtype=float)
+	v_y0=np.zeros(num_nodes,dtype=float)
+	v_yL=np.zeros(num_nodes,dtype=float)
+	p_x_x0=np.zeros(num_nodes,dtype=float)
+	p_x_xL=np.zeros(num_nodes,dtype=float)
+	p_y_y0=np.zeros(num_nodes,dtype=float)
+	p_y_yL=np.zeros(num_nodes,dtype=float)
+	(u_x0,u_xL)=get_u_boundaries(u_x0,u_xL,x_b0,x_b1,x_b2,x_b3,x_b4)
+	(v_y0,v_yL)=get_v_boundaries(v_y0,v_yL,y_b0,y_b1,y_b2,y_b3,y_b4)
+	(p_x_x0,p_x_xL)=get_p_x_boundaries(p_x_x0,p_x_xL,x_b0,x_b1,x_b2,x_b3,x_b4)
+	(p_y_y0,p_y_yL)=get_p_y_boundaries(p_y_y0,p_y_yL,y_b0,y_b1,y_b2,y_b3,y_b4)
+
 	verbosemsg("Working out p(x,y)")
 	while t < endTime:
 		# find the next solution
 		t+=deltaT
 		pxpy=px+py
-		u=get_u(u,pxpy,div_u)
-		v=get_v(v,pxpy,div_v)
-		px=get_p_x(px,u,t,div_p_x)
-		py=get_p_y(py,v,t,div_p_y)
+		u=get_u(u,pxpy,div_u,u_x0,u_xL,x_b0,x_b1,x_b2,x_b3,x_b4)
+		v=get_v(v,pxpy,div_v,v_y0,v_yL,y_b0,y_b1,y_b2,y_b3,y_b4)
+		px=get_p_x(px,u,t,div_p_x,p_x_x0,p_x_xL,x_b0,x_b1,x_b2,x_b3,x_b4)
+		py=get_p_y(py,v,t,div_p_y,p_y_y0,p_y_yL,y_b0,y_b1,y_b2,y_b3,y_b4)
 
         # save a picture
 		if abs(t - next_image) < 0.001:
