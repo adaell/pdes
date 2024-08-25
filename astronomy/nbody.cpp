@@ -254,11 +254,11 @@ void temporal_loop(double r[][3], double v[][3], double a[][3], double j[][3], d
 int main()
 {
     // The position and velocity vectors at t=0
-    double (*r)[3] = new double[NUM_PLANETS][3] {{1.0,0.0,0.0},{-1.0,-1.0,0.0},{0.0,1.0,0.0}};
-    double (*v)[3] = new double[NUM_PLANETS][3] {{0.0,1.0,0.0},{0.0,-1.0,0.0},{0.5,0.5,0.0}};
+    double (*r)[3] = new double[NUM_PLANETS][3] {{0.0,0.0,0.0},{1.0,1.0,0.0},{0.0,-1.0,0.0}};
+    double (*v)[3] = new double[NUM_PLANETS][3] {{0.0,0.0,0.0},{-1.0,0.0,0.0},{1.0,0.0,0.0}};
 
     // The mass of each planet
-    double (*m) = new double [NUM_PLANETS] {1.0,1.0,1.0};
+    double (*m) = new double [NUM_PLANETS] {5.0,1.0,1.0};
     
     // Declare a bunch of arrays
     double (*a)[3] = new double[NUM_PLANETS][3] {{0.0,0.0,0.0},{0.0,0.0,0.0},{0.0,0.0,0.0}};
