@@ -24,15 +24,13 @@
 # boundary, f(t) is the initial condition, L is the latent heat, rho is the 
 # density, k is the thermal conductivity and alpha is the thermal diffusivity.
 #
-# Based on the algorithm studied by Daniel Stoor [1]
-# https://www.diva-portal.org/smash/get/diva2:1325632/FULLTEXT02
-
-
+# Based on the algorithm studied by Daniel Stoor [1].
+#
+# [1] https://www.diva-portal.org/smash/get/diva2:1325632/FULLTEXT02
+#
 
 import numpy as np
 import math
-import os
-
 
 NUM_RAND=1000000
 class rand_stack():
