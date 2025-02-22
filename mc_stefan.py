@@ -22,7 +22,7 @@
 #
 # where T(x,t) is the temperature at (x,t), s(t) is the location of the moving
 # boundary, f(t) is the initial condition, L is the latent heat, rho is the 
-# density, k is the thermal conductiving and alpha is the heat constant.
+# density, k is the thermal conductivity and alpha is the thermal diffusivity.
 #
 # Based on the algorithm studied by Daniel Stoor [1]
 # https://www.diva-portal.org/smash/get/diva2:1325632/FULLTEXT02
