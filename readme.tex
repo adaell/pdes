@@ -33,7 +33,7 @@ Calculates the solution to the classical Stefan problem
 u(0,t)&=1,\\
 u(x,0)&=0,\\
 u(s(t),t)&=T_m\\
-s(0)&=0\\
+s(0)&=0,\\
 L \hspace{0.1cm} \rho \hspace{0.1cm} \frac{ds}{dt} &= k \hspace{0.1cm} \frac{\partial u}{\partial x}\bigg|_{x=s(t)}
 \end{align*}
 using a monte carlo, where $u(x,t)$ is the temperature, $s(t)$ is the position of the moving boundary, $\alpha$ is the thermal diffusivity, $T_m$ is the melting temperature, $L$ is the latent heat, $\rho$ is the density and $k$ is the thermal conductivity. The solution is calculated on the domain $\Omega$ bound by $x \in [0,L_x]$ and $t > 0$. The code models the free boundary using the method proposed by Stoor \cite{stoor}. 
