@@ -145,7 +145,7 @@ def mc():
     T=T/n
     return obs
 
-# plots
+# Used to solve the Neumann equation 
 def f(x,beta,T_0):
     return math.sqrt(math.pi)*beta*x*math.exp(x*x)*math.erf(x)-T_0
 
@@ -188,7 +188,7 @@ def neumann():
     
     return obs
 
-def print_obs(n,m):
+def print_results(n,m):
     print("%s\t%s\t%s" % ("Time","Neumann","Monte Carlo"))
     for i in range(0,len(n)):
         ntup=n[i]
@@ -197,7 +197,7 @@ def print_obs(n,m):
 
 n=neumann()
 m=mc()
-print_obs(n,m)
+print_results(n,m)
 
 
 
