@@ -88,14 +88,14 @@ def mc():
     T[0,0] = T_0*n # boundary
     s_vector[0] = s
     for x_i in range(0,s_i+1):
-            R_vec = RR.pop(T[x_i,t_j])
-            for k in range(0,T[x_i,t_j],1): 
-                # if not on boundaries
-                if x_i+R_vec[k] > 0 and x_i+R_vec[k] <= s_i:
-                    T[x_i+R_vec[k],t_j+1] += 1
-                elif x_i+R_vec[k] == s_i+1:
-                    s += ds
-                    s_i=int(s/dx)
+        R_vec = RR.pop(T[x_i,t_j])
+        for k in range(0,T[x_i,t_j],1): 
+            # if not on boundaries
+            if x_i+R_vec[k] > 0 and x_i+R_vec[k] <= s_i:
+                T[x_i+R_vec[k],t_j+1] += 1
+            elif x_i+R_vec[k] == s_i+1:
+                s += ds
+                s_i=int(s/dx)
     t_j=t_j+1
     
     while t_j < (N_t-1) and s_i < N_x:
