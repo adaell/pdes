@@ -118,7 +118,7 @@ def mc():
                         s_i=int(s/dx)
             else:
                 if x_i == 0:
-                    num_r = np.sum(R_vec) # 28 %
+                    num_r = np.sum(R_vec)
                     T[x_i+1,t_j+1] += sign*num_r
                 elif x_i == s_i:
                     for k in range(0,sign*T[x_i,t_j],sign): 
@@ -139,7 +139,7 @@ def mc():
         # Save observation data
         if t_j*dt >= obscounter:
             obs.append((t_j*dt,s))
-            print("t=%s\ts=%s"%(t_j*dt,s))
+            #print("t=%s\ts=%s"%(t_j*dt,s))
             obscounter+=obstime
         
     T=T/n
@@ -184,15 +184,16 @@ def neumann():
         t=t_i*obstime
         analytic=dx+2*lamb*math.sqrt(alpha*t)
         obs.append((t,analytic))
-        print("%s\t%s" % (t,analytic))
+        #print("%s\t%s" % (t,analytic))
     
     return obs
 
 def print_obs(n,m):
+    print("%s\t%s\t%s" % ("Time","Neumann","Monte Carlo"))
     for i in range(0,len(n)):
         ntup=n[i]
         mtup=m[i]
-        print("%s\t%s\t%s" % (ntup[0],ntup[1],mtup[1]))
+        print("%s\t%s\t%s" % (round(ntup[0],4),round(ntup[1],4),round(mtup[1],4)))
 
 n=neumann()
 m=mc()
