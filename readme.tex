@@ -26,6 +26,30 @@ a \hspace{0.1cm} u(x,y,t) + b \hspace{0.1cm} \frac{\partial u}{\partial n} = g(x
 \end{equation*}
 where $a$ and $b$ are real scalars, $g(x,y)$ is an arbitrary function on the boundary and $\partial n$ denotes differentiation in the direction of a normal to the boundary. The initial condition $u_0(x,y)=u(x,y,0)$ can be any real valued function. The solution is calculated using the finite difference method.
 
+\subsection{\texttt{mc\_stefan.py}}
+Calculates the solution to the classical Stefan problem
+\begin{align*}
+\frac{\partial u}{\partial t} &= \alpha \hspace{0.1cm} \frac{\partial^2 u}{\partial x^2}, \hspace{0.5cm} 0 < x < s(t), \hspace{0.2cm} t > 0 \\
+u(0,t)&=1,\\
+u(x,0)&=0,\\
+u(s(t),t)&=T_m\\
+s(0)&=0\\
+L \hspace{0.1cm} \rho \hspace{0.1cm} \frac{ds}{dt} &= k \hspace{0.1cm} \frac{\partial u}{\partial x} %\|_{x=s(t)
+\end{align*}
+using a monte carlo, where $u(x,t)$ is the temperature, $s(t)$ is the position of the moving boundary, $\alpha$ is the thermal diffusivity, $T_m$ is the melting temperature, $L$ is the latent heat, $\rho$ is the density and $k$ is the thermal conductivity. The solution is calculated on the domain $\Omega$ bound by $x \in [0,L_x]$ and $t > 0$. The code models the free boundary using the method proposed by Stoor \cite{stoor}. 
+\newline 
+
+The answer is compared to the analytical solution derived by Neumann\footnote{A similarity solution derived using the variable $\xi=\frac{x}{\sqrt{t}}$.}
+\begin{align*}
+u(x,t)&=1-\frac{\mathrm{erf} \left( \frac{x}{2\sqrt{t}} \right) }{ \mathrm{erf} \left( \lambda \right)}, \\
+s(t)&=2 \lambda \sqrt{t},
+\end{align*}
+where $\lambda$ satisfies
+\begin{equation}
+\beta \sqrt{\pi}\lambda \mathrm{e}^{\lambda^2} \mathrm{erf} \left( \lambda \right) = 1,
+\end{equation}
+where $\beta$ is the Stefan number.
+
 \section{Hyperbolic PDEs}
 
 \subsection{\texttt{wave\_2D.py}} 
