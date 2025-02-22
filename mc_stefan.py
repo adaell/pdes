@@ -187,11 +187,11 @@ def neumann():
     return obs
 
 def print_results(n,m):
-    print("%s\t%s\t%s" % ("Time","Neumann","Monte Carlo"))
+    print("%s\t%s\t%s" % ("Time","Neumann s(t)","Monte Carlo s(t)"))
     for i in range(0,len(n)):
         ntup=n[i]
         mtup=m[i]
-        print("%s\t%s\t%s" % (round(ntup[0],4),round(ntup[1],4),round(mtup[1],4)))
+        print("%s\t%s\t\t%s" % (round(ntup[0],4),round(ntup[1],4),round(mtup[1],4)))
 
 n=neumann()
 m=mc()
