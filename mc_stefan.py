@@ -1,7 +1,7 @@
 #
 # Solves the classic 1D Stefan problem using a monte carlo that simulates 
 # Brownian motion and compares the output to the well known Neumann solution, 
-# i.e.
+# i.e. solves the problem:
 #
 #                                        2
 #                 d                     d
@@ -14,29 +14,34 @@
 #                L rho (-- (s(t))) = k (-- (T(x, t)))|
 #                       dt              dx           |x=s(t)
 #
-#               T(0,t) = f(t)
+#               T(0,t) = 1
 #
 #               s(0) =  0
 #
 #               T(x,0) = 0
 #
 # where T(x,t) is the temperature at (x,t), s(t) is the location of the moving
-# boundary, f(t) is the initial condition, L is the latent heat, rho is the 
-# density, k is the thermal conductivity and alpha is the thermal diffusivity.
+# boundary, L is the latent heat, rho is the density, k is the thermal 
+# conductivity and alpha is the thermal diffusivity.
 #
-# Based on the algorithm studied by Daniel Stoor [1].
+# The moving boundary is modelled using the method proposed by Daniel Stoor[1].
+#
+# The monte carlo solution is then compared to the Neumann solution.
 #
 # [1] https://www.diva-portal.org/smash/get/diva2:1325632/FULLTEXT02
 #
 
 import numpy as np
 import math
+import dask.array as da
 
-NUM_RAND=1000000
+#NUM_RAND=1000000
+NUM_RAND=500000
 class rand_stack():
     def __init__(self):
         self.reset_counter=0
         self.reset()
+    #@profile
     def reset(self):
         self.R=np.random.randint(2,size=NUM_RAND)
         self.counter=0
@@ -62,7 +67,7 @@ def mc():
     T_0=1
     
     n=10000 #number of iterations
-    dx=0.01
+    dx=0.005
     dt=(dx*dx)/(2*alpha)
     ds=dx/(n*beta)
     N_x=math.ceil(L/dx)+1
@@ -77,59 +82,49 @@ def mc():
     obscounter=0
     obs=[]
     
-    RR=rand_stack()
+    RR=rand_stack()  
+    
+    # t = 0
+    T[0,0] = T_0*n # boundary
+    s_vector[0] = s
+    for x_i in range(0,s_i+1):
+            R_vec = RR.pop(T[x_i,t_j])
+            for k in range(0,T[x_i,t_j],1): 
+                # if not on boundaries
+                if x_i+R_vec[k] > 0 and x_i+R_vec[k] <= s_i:
+                    T[x_i+R_vec[k],t_j+1] += 1
+                elif x_i+R_vec[k] == s_i+1:
+                    s += ds
+                    s_i=int(s/dx)
+    t_j=t_j+1
     
     while t_j < (N_t-1) and s_i < N_x:
         T[0,t_j] = T_0*n # dirichlet boundary
         s_vector[t_j] = s
-        for x_i in range(0,s_i+1):
-            # handling of temperatures below 0C
-            if T[x_i,t_j] < 0: 
-                sign = -1
-            else:
-                sign = 1
-                
-            # Basic algorithm
-            # R_vec = np.random.randint(2,size=T[x_i,t_j])
-            # R_vec[R_vec == 0] = -1
-            # # Move all agents at position (x_i
-            # for k in range(0,sign*T[x_i,t_j],sign): 
-            #     p = R_vec[k]
-            #     # if not on boundaries
-            #     if x_i+p > 0 and x_i+p <= s_i:
-            #         T[x_i+p,t_j+1] += sign
-            #     elif x_i+p == s_i+1:
-            #         s += ds*sign
-            #         s_i=int(s/dx)
-            
-            # Same as above but much faster
+        
+        # x == 0
+        R_vec = RR.pop(T[0,t_j])
+        # Move all agents at position (x_i)
+        num_r = np.sum(R_vec)
+        T[1,t_j+1] += num_r
+        
+        # x == s_i
+        R_vec = RR.pop(T[s_i,t_j])
+        for k in range(0,T[s_i,t_j],1): 
+            if s_i+R_vec[k] <= s_i:
+                T[s_i+R_vec[k],t_j+1] += 1
+            elif s_i+R_vec[k] == s_i+1:
+                s += ds
+                s_i=int(s/dx)
+        
+        # x > 0 and x < s_i
+        for x_i in range(1,s_i):
             #R_vec = np.random.randint(2,size=T[x_i,t_j])
             R_vec = RR.pop(T[x_i,t_j])
             # Move all agents at position (x_i)
-            if t_j == 0:
-                for k in range(0,sign*T[x_i,t_j],sign): 
-                    # if not on boundaries
-                    if x_i+R_vec[k] > 0 and x_i+R_vec[k] <= s_i:
-                        T[x_i+R_vec[k],t_j+1] += sign
-                    elif x_i+R_vec[k] == s_i+1:
-                        s += ds*sign
-                        s_i=int(s/dx)
-            else:
-                if x_i == 0:
-                    num_r = np.sum(R_vec)
-                    T[x_i+1,t_j+1] += sign*num_r
-                elif x_i == s_i:
-                    for k in range(0,sign*T[x_i,t_j],sign): 
-                        if x_i+R_vec[k] <= s_i:
-                            T[x_i+R_vec[k],t_j+1] += sign
-                        elif x_i+R_vec[k] == s_i+1:
-                            s += ds*sign
-                            s_i=int(s/dx)
-                else:
-                    num_r = np.sum(R_vec)
-                    num_l = len(R_vec) - num_r
-                    T[x_i+1,t_j+1] += sign*num_r
-                    T[x_i-1,t_j+1] += sign*num_l
+            num_r = np.sum(R_vec)
+            T[x_i+1,t_j+1] += num_r
+            T[x_i-1,t_j+1] += T[x_i,t_j] - num_r
             
             
         t_j=t_j+1
@@ -147,14 +142,16 @@ def mc():
 def f(x,beta,T_0):
     return math.sqrt(math.pi)*beta*x*math.exp(x*x)*math.erf(x)-T_0
 
+
 def df(x,beta,T_0):
     return beta*(math.sqrt(math.pi)*math.exp(x*x)*math.erf(x)*(2*x*x+1)+2*x*x)
+
 
 def solve_neumann_lambda(beta, T_0):
     tol=1e-6
     x0=1
     while abs(f(x0,beta,T_0)) > tol:
-        x0=x0-f(x0,beta,T_0)/df(x0,beta,T_0)
+        x0=x0-f(x0,beta,T_0)/df(x0,beta,T_0) #Newton-Raphson
     return x0
 
 def neumann():
