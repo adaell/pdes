@@ -1,7 +1,8 @@
 #
 # Solves the classic 1D Stefan problem using a monte carlo that simulates 
-# Brownian motion and compares the output to the well known Neumann solution, 
-# i.e. solves the problem:
+# Brownian motion and compares the output to the well known Neumann solution.
+# 
+# Specifically, the program solves the problem
 #
 #                                        2
 #                 d                     d
@@ -26,7 +27,12 @@
 #
 # The moving boundary is modelled using the method proposed by Daniel Stoor[1].
 #
-# The monte carlo solution is then compared to the Neumann solution.
+# At completion, the program prints out the solution calculated by the monte 
+# carlo model as well as the analytical solution to the Stefan problem that was
+# published by Neumann.
+#
+# Note that there is a singularity at t=0 which is handled differently by the
+# two models.
 #
 # [1] https://www.diva-portal.org/smash/get/diva2:1325632/FULLTEXT02
 #
@@ -125,7 +131,6 @@ def mc():
             num_r = np.sum(R_vec)
             T[x_i+1,t_j+1] += num_r
             T[x_i-1,t_j+1] += T[x_i,t_j] - num_r
-            
             
         t_j=t_j+1
         
