@@ -1,5 +1,6 @@
 \documentclass{article}
 \usepackage{amsmath}
+\usepackage{amsfonts}
 \usepackage{amssymb}
 \usepackage{multicol}
 \usepackage[backend=biber]{biblatex}
@@ -9,6 +10,36 @@
 \title{Notes}
 
 \section{Parabolic PDEs}
+
+\subsection{\texttt{1d\_heat\_equation\_analytic.py}}
+Calculates the analytical solution to the one-dimensional heat equation
+\begin{equation*}
+\frac{\partial u}{\partial t} = D \hspace{0.1cm} \frac{\partial^2 u}{\partial x^2},
+\end{equation*}
+on $0 < x < L$, for any initial condition and for Robin boundary conditions
+\begin{align*}
+u(x,0)&=g(x),\\
+a \hspace{0.1cm}\frac{\partial u}{\partial x}\bigg|_{x=0} + b \hspace{0.1cm} u(0,t) &= c, \\
+d \hspace{0.1cm}\frac{\partial u}{\partial x}\bigg|_{x=0} + e \hspace{0.1cm} u(0,t) &= f,
+\end{align*}
+where $a,b,c,d,e,f \in \mathbb{R}^{+} $. The analytical solution to this equation is given by
+\begin{equation*}
+u(x,t)=\alpha x + \beta (L - x) + \sum_{n=0}^{\infty} \left( A_n \mathrm{cos}\left( \lambda_n x \right) + B_n \mathrm{sin}\left( \lambda_n x \right) \right) \mathrm{exp}^{-\lambda_n^2 D t}
+\end{equation*}
+where
+\begin{align*}
+A_0 &= \frac{1}{L} \int_0^L h(0) dw, \\
+A_n &= \frac{2}{L} \int_0^L h\left( \frac{n \pi}{\lambda_n L} \right) \mathrm{cos} \left( \frac{n \pi w}{L} \right) dw,\\
+B_n &= \frac{2}{L} \int_0^L h\left( \frac{n \pi}{\lambda_n L} \right) \mathrm{sin} \left( \frac{n \pi w}{L} \right) dw,
+\end{align*}
+the eigenvalues, $\lambda_n$, satisfy
+\begin{equation*}
+(ad\lambda_n^2-be) \hspace{0.1cm} \mathrm{sin}\left( \lambda_n x \right) + (ae-bd) \hspace{0.1cm} \lambda_n \hspace{0.1cm} \mathrm{cos}\left( \lambda_n x \right) = 0,
+\end{equation*}
+and for brevity
+\begin{equation*}
+\alpha=\frac{Lbf-af+cd}{b(L^2e+Ld)-Lae}, \hspace{0.5cm} \beta=\frac{c(Le+d)-af}{b(L^2e+Ld)-Lae}.
+\end{equation*}
 
 \subsection{\texttt{diff\_adv\_2D.py}} 
 
